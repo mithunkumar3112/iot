@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reverse Phone Link - PC Pairing</title>
+    <!-- Include a simple generic QR Code library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: #1a1a1a; color: #fff; text-align: center; }
+        .glass-panel { background: rgba(255, 255, 255, 0.05); padding: 40px; border-radius: 16px; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.1); width: 350px; }
+        h1 { font-size: 24px; margin-bottom: 20px; font-weight: 500; }
+        p { color: #aaa; font-size: 14px; margin-bottom: 30px; }
+        #qrcode { background: white; padding: 20px; border-radius: 8px; display: inline-block; margin-bottom: 20px; }
+        .status { margin-top: 20px; color: #4CAF50; font-size: 14px; display: none; }
+        .spinner { border: 4px solid rgba(255,255,255,0.1); width: 24px; height: 24px; border-radius: 50%; border-left-color: #fff; animation: spin 1s ease infinite; margin: 0 auto 20px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <div class="glass-panel" id="panel">
+        <div id="loader">
+            <div class="spinner"></div>
+            <p>Initializing Secure Session...</p>
+        </div>
+
+        <div id="qr-section" style="display: none;">
+            <h1>Scan to Pair Android</h1>
+            <p>Use the Reverse Phone Link app to scan this code.</p>
+            <div id="qrcode"></div>
+            <p style="font-size: 11px;">Waiting for connection...</p>
+        </div>
+
+        <div class="status" id="success-msg">
+            ✅ Successfully paired with Android device! Secure connection established.
+        </div>
+    </div>
+
+    <script>
+        // Fetch the PC's Public Key
+        fetch('/reverselink/qr-payload')
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('loader').style.display = 'none';
+                document.getElementById('qr-section').style.display = 'block';
+
+                // We encode the local IP (assumed to be 192.168.x.x conceptually) and the Public Key
+                // Since JavaScript runs in browser, we just output the host port and public key
+                const pairingData = JSON.stringify({
+                    host: window.location.host,
+                    publicKey: data.publicKey
+                });
+
+                new QRCode(document.getElementById("qrcode"), {
+                    text: pairingData,
+                    width: 256,
+                    height: 256,
+                    colorDark : "#000000",
+                    colorLight : "#ffffff",
+                    correctLevel : QRCode.CorrectLevel.L
+                });
+                
+                // In a real app we'd open a WebSocket to wait for pairing success
+                // For demo visually, we simulate pairing success if manually triggered
+            })
+            .catch(err => {
+                document.getElementById('loader').innerHTML = "<p style='color: #ff4c4c;'>Error connecting to local PC server. Ensure backend is running.</p>";
+            });
+    </script>
+</body>
+</html>

@@ -1,0 +1,58 @@
+CREATE TABLE users (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    password VARCHAR(100) NOT NULL,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE devices (
+    id VARCHAR(36) PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    mac_address VARCHAR(50) NOT NULL UNIQUE,
+    user_id BIGINT NOT NULL,
+    last_seen_at TIMESTAMP,
+    is_online BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE system_metrics (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    device_id VARCHAR(36) NOT NULL,
+    battery_percentage DOUBLE NOT NULL,
+    is_charging BOOLEAN NOT NULL,
+    cpu_usage DOUBLE NOT NULL,
+    ram_usage DOUBLE NOT NULL,
+    system_uptime BIGINT NOT NULL,
+    last_active_app VARCHAR(255),
+    running_apps_json TEXT,
+    timestamp TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE
+);
+
+CREATE TABLE screenshots (
+    id VARCHAR(36) PRIMARY KEY,
+    device_id VARCHAR(36) NOT NULL,
+    file_path VARCHAR(255) NOT NULL,
+    file_size BIGINT NOT NULL,
+    timestamp TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE
+);
+
+CREATE TABLE commands (
+    id VARCHAR(36) PRIMARY KEY,
+    device_id VARCHAR(36) NOT NULL,
+    command_type VARCHAR(50) NOT NULL,
+    parameters TEXT,
+    issued_at TIMESTAMP NOT NULL,
+    executed_at TIMESTAMP,
+    status VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE
+);

@@ -1,0 +1,5 @@
+com\iotmonitor\agent\App.class
+com\iotmonitor\monitor\SystemMonitor.class
+com\iotmonitor\network\ApiClient.class
+com\iotmonitor\network\TokenManager.class
+com\iotmonitor\monitor\ScreenshotService.class
