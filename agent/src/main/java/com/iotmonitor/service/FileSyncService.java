@@ -1,0 +1,309 @@
+package com.iotmonitor.service;
+
+import com.iotmonitor.config.AgentConfig;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.*;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestTemplate;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.security.MessageDigest;
+import java.util.*;
+import java.util.concurrent.*;
+
+/**
+ * File synchronisation service for the IoT Monitor laptop agent.
+ *
+ * Responsibilities
+ * ----------------
+ * 1. On startup, registers a {@link WatchService} on each configured watched
+ *    directory and begins emitting CREATE / MODIFY / MOVE events in a
+ *    background thread.
+ * 2. Uploads new or changed files to {@code /server-files/upload} using
+ *    multipart/form-data.
+ * 3. Skips files that have already been uploaded (tracked by SHA-256 hash of
+ *    the first 64 KB + file size).
+ * 4. Runs a full-directory scan on a configurable interval as a safety net to
+ *    catch any files that might have been missed by the WatchService (common
+ *    during the first startup).
+ *
+ * All upload tasks are executed on a small fixed thread pool to avoid blocking
+ * the WatchService loop and to support parallel uploads.
+ */
+@Service
+public class FileSyncService {
+
+    private static final Logger log = LoggerFactory.getLogger(FileSyncService.class);
+
+    private final AgentConfig config;
+    private final AuthService authService;
+    private final RestTemplate rest = new RestTemplate();
+
+    /** SHA-256 hashes of already-uploaded file versions */
+    private final Set<String> uploadedHashes = ConcurrentHashMap.newKeySet();
+
+    /** Upload executor – 3 threads for parallel uploads */
+    private final ExecutorService uploadPool = Executors.newFixedThreadPool(3);
+
+    private WatchService watchService;
+    private Thread watchThread;
+    private volatile boolean running = true;
+
+    public FileSyncService(AgentConfig config, AuthService authService) {
+        this.config      = config;
+        this.authService = authService;
+    }
+
+    // -----------------------------------------------------------------------
+    // Lifecycle
+    // -----------------------------------------------------------------------
+
+    @PostConstruct
+    public void startWatcher() {
+        try {
+            watchService = FileSystems.getDefault().newWatchService();
+            List<String> dirs = config.getWatchedDirs();
+            int registered = 0;
+
+            for (String dir : dirs) {
+                Path path = Paths.get(dir);
+                if (Files.isDirectory(path)) {
+                    path.register(watchService,
+                        StandardWatchEventKinds.ENTRY_CREATE,
+                        StandardWatchEventKinds.ENTRY_MODIFY);
+                    log.info("Watching: {}", path);
+                    registered++;
+                } else {
+                    log.warn("Watched directory not found (skipping): {}", dir);
+                }
+            }
+
+            if (registered == 0) {
+                log.warn("No valid watched directories found – real-time sync disabled");
+                return;
+            }
+
+            watchThread = new Thread(this::watchLoop, "file-watcher");
+            watchThread.setDaemon(true);
+            watchThread.start();
+            log.info("File watcher started on {} director{}", registered, registered == 1 ? "y" : "ies");
+
+        } catch (IOException ex) {
+            log.error("Failed to start WatchService: {}", ex.getMessage());
+        }
+    }
+
+    @PreDestroy
+    public void stopWatcher() {
+        running = false;
+        if (watchService != null) {
+            try { watchService.close(); } catch (IOException ignored) {}
+        }
+        uploadPool.shutdownNow();
+        log.info("File watcher stopped");
+    }
+
+    // -----------------------------------------------------------------------
+    // WatchService loop
+    // -----------------------------------------------------------------------
+
+    private void watchLoop() {
+        while (running) {
+            WatchKey key;
+            try {
+                key = watchService.take();   // blocks until an event arrives
+            } catch (InterruptedException | ClosedWatchServiceException e) {
+                break;
+            }
+
+            Path watchedDir = (Path) key.watchable();
+
+            for (WatchEvent<?> event : key.pollEvents()) {
+                WatchEvent.Kind<?> kind = event.kind();
+                if (kind == StandardWatchEventKinds.OVERFLOW) continue;
+
+                @SuppressWarnings("unchecked")
+                Path filename = ((WatchEvent<Path>) event).context();
+                Path fullPath = watchedDir.resolve(filename);
+
+                if (Files.isRegularFile(fullPath)) {
+                    // Short delay so the OS finishes writing the file
+                    uploadPool.submit(() -> {
+                        sleep(500);
+                        uploadFile(fullPath);
+                    });
+                }
+            }
+
+            if (!key.reset()) {
+                log.warn("WatchKey invalidated for: {}", watchedDir);
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Periodic full-scan (safety net)
+    // -----------------------------------------------------------------------
+
+    @Scheduled(fixedDelayString = "${agent.sync-interval-ms:30000}")
+    public void fullScanSync() {
+        log.debug("Full-scan sync starting…");
+        for (String dir : config.getWatchedDirs()) {
+            Path root = Paths.get(dir);
+            if (!Files.isDirectory(root)) continue;
+            try {
+                Files.walkFileTree(root, new SimpleFileVisitor<>() {
+                    @Override
+                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                        uploadPool.submit(() -> uploadFile(file));
+                        return FileVisitResult.CONTINUE;
+                    }
+                    @Override
+                    public FileVisitResult visitFileFailed(Path file, IOException exc) {
+                        return FileVisitResult.CONTINUE;
+                    }
+                });
+            } catch (IOException ex) {
+                log.warn("Full-scan error for {}: {}", dir, ex.getMessage());
+            }
+        }
+        log.debug("Full-scan sync queued");
+    }
+
+    // -----------------------------------------------------------------------
+    // Upload a single file
+    // -----------------------------------------------------------------------
+
+    void uploadFile(Path file) {
+        if (!Files.isRegularFile(file)) return;
+
+        // Size check
+        long size;
+        try { size = Files.size(file); }
+        catch (IOException e) { return; }
+
+        if (size > config.getMaxFileSizeBytes()) {
+            log.debug("Skipping large file ({} MB): {}", size / (1024 * 1024), file);
+            return;
+        }
+
+        // Hash check – skip if we already uploaded this version
+        String hash = quickHash(file, size);
+        if (uploadedHashes.contains(hash)) return;
+
+        String folder   = deriveFolderName(file);
+        String filename = file.getFileName().toString();
+
+        try {
+            byte[] bytes = Files.readAllBytes(file);
+
+            // Build multipart body
+            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+            body.add("file", new NamedByteArrayResource(bytes, filename));
+            body.add("folder", folder);
+
+            HttpHeaders headers = authService.authHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+            HttpEntity<MultiValueMap<String, Object>> request = new HttpEntity<>(body, headers);
+            ResponseEntity<String> response = rest.postForEntity(
+                config.getBackendUrl() + "/api/android/files/upload",
+                request,
+                String.class
+            );
+
+            if (response.getStatusCode().is2xxSuccessful()) {
+                uploadedHashes.add(hash);
+                log.info("Uploaded: {}/{} ({} bytes)", folder, filename, size);
+            } else {
+                log.warn("Upload rejected ({}): {}", response.getStatusCode(), filename);
+            }
+
+        } catch (HttpClientErrorException.Unauthorized e) {
+            authService.invalidateToken();
+            log.warn("Token expired – will re-authenticate on next attempt");
+        } catch (IOException ex) {
+            log.warn("Could not read file {}: {}", file, ex.getMessage());
+        } catch (Exception ex) {
+            log.warn("Upload error for {}: {}", filename, ex.getMessage());
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Helpers
+    // -----------------------------------------------------------------------
+
+    /**
+     * Derives a folder tag from the file's parent directory name, mapping
+     * Desktop/Documents/Downloads to lowercase equivalents.
+     */
+    private String deriveFolderName(Path file) {
+        String parent = file.getParent() != null
+            ? file.getParent().getFileName().toString().toLowerCase()
+            : "misc";
+        return switch (parent) {
+            case "desktop"   -> "desktop";
+            case "documents" -> "documents";
+            case "downloads" -> "downloads";
+            default          -> parent;
+        };
+    }
+
+    /**
+     * Quick SHA-256: hashes the first 64 KB of the file concatenated with the
+     * file size. Fast enough even for large files yet unique for all practical
+     * purposes.
+     */
+    private String quickHash(Path file, long size) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            md.update(Long.toString(size).getBytes());
+            try (InputStream is = Files.newInputStream(file)) {
+                byte[] buf = new byte[65536];
+                int read = is.read(buf);
+                if (read > 0) md.update(buf, 0, read);
+            }
+            return HexFormat.of().formatHex(md.digest());
+        } catch (Exception e) {
+            return file.toString() + "@" + size;
+        }
+    }
+
+    private void sleep(long ms) {
+        try { Thread.sleep(ms); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+    }
+
+    // -----------------------------------------------------------------------
+    // Inner class: named ByteArrayResource for multipart upload
+    // -----------------------------------------------------------------------
+
+    /**
+     * Spring's {@link ByteArrayResource} does not carry a filename, which
+     * causes the server to receive "blob" instead of the real name.
+     * This subclass overrides {@link #getFilename()} to fix that.
+     */
+    private static class NamedByteArrayResource extends ByteArrayResource {
+        private final String filename;
+
+        NamedByteArrayResource(byte[] bytes, String filename) {
+            super(bytes);
+            this.filename = filename;
+        }
+
+        @Override
+        public String getFilename() {
+            return filename;
+        }
+    }
+}

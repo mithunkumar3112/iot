@@ -1,5 +1,7 @@
 package com.iotmonitor.controller;
 
+import com.iotmonitor.dto.FileInfo;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
@@ -14,11 +16,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * File service used by the UI.  All methods are public and the security layer
+ * File service used by the UI. All methods are public and the security layer
  * already permits access to "/files/**", so the controller is responsible
  * for validating paths and handling I/O problems gracefully.
  */
@@ -29,35 +33,119 @@ public class FileController {
 
     private static final Logger logger = LoggerFactory.getLogger(FileController.class);
 
-    private final Path root = Paths.get("C:/shared-files").toAbsolutePath().normalize();
+    @Value("${app.file.paths:C:/Users/Public/Documents,C:/shared-files}")
+    private String filePaths;
 
-    private Path resolveSafe(String name) throws IOException {
-        Path file = root.resolve(name).normalize();
-        if (!file.startsWith(root)) {
-            throw new IOException("Attempt to escape root directory");
-        }
-        return file;
+    private List<Path> getRootPaths() {
+        return Arrays.stream(filePaths.split(","))
+                .map(String::trim)
+                .map(p -> Paths.get(p).toAbsolutePath().normalize())
+                .collect(Collectors.toList());
     }
 
-    // list files
+    private Path resolveSafe(String filePath) throws IOException {
+        // Try to find the file in any of the configured paths
+        for (Path root : getRootPaths()) {
+            try {
+                Path file = root.resolve(filePath).normalize();
+                if (file.startsWith(root) && Files.exists(file)) {
+                    return file;
+                }
+            } catch (Exception e) {
+                // Try next path
+                continue;
+            }
+        }
+        throw new IOException("File not found in any configured path: " + filePath);
+    }
+
+    // List files from all configured paths with metadata
     @GetMapping("/list")
     public ResponseEntity<?> listFiles() {
         try {
-            List<String> names = Files.list(root)
-                    .map(p -> p.getFileName().toString())
-                    .collect(Collectors.toList());
-            return ResponseEntity.ok(names);
-        } catch (IOException e) {
+            List<FileInfo> fileList = new ArrayList<>();
+            
+            for (Path root : getRootPaths()) {
+                if (!Files.exists(root)) {
+                    logger.warn("Configured path does not exist: {}", root);
+                    continue;
+                }
+                
+                try (var stream = Files.walk(root, 3)) {
+                    stream.filter(p -> !p.equals(root)) // exclude root itself
+                          .filter(p -> {
+                              try {
+                                  return Files.isReadable(p);
+                              } catch (Exception e) {
+                                  return false;
+                              }
+                          })
+                          .forEach(p -> {
+                              try {
+                                  String relativePath = root.relativize(p).toString();
+                                  long size = Files.isDirectory(p) ? 0 : Files.size(p);
+                                  long lastModified = Files.getLastModifiedTime(p).toMillis();
+                                  String fileName = p.getFileName().toString();
+                                  
+                                  fileList.add(new FileInfo(
+                                      fileName,
+                                      relativePath,
+                                      size,
+                                      Files.isDirectory(p),
+                                      lastModified
+                                  ));
+                              } catch (IOException e) {
+                                  logger.warn("Error getting file info for {}: {}", p, e.getMessage());
+                              }
+                          });
+                } catch (IOException e) {
+                    logger.warn("Error listing files from {}: {}", root, e.getMessage());
+                }
+            }
+            
+            logger.info("Found {} files", fileList.size());
+            return ResponseEntity.ok(fileList);
+        } catch (Exception e) {
+            logger.error("Error listing files", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Unable to list files: " + e.getMessage());
         }
     }
 
-    // open file inline
-    @GetMapping("/view/{name}")
-    public ResponseEntity<?> viewFile(@PathVariable String name) {
+    // Download file
+    @GetMapping("/download/{filePath:.+}")
+    public ResponseEntity<?> downloadFile(@PathVariable String filePath,
+                                         @RequestParam(required = false) String token) {
         try {
-            Path file = resolveSafe(name);
+            Path file = resolveSafe(java.net.URLDecoder.decode(filePath, "UTF-8"));
+            
+            if (!Files.isReadable(file)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body("File is not readable");
+            }
+            
+            Resource resource = new UrlResource(file.toUri());
+            String fileName = file.getFileName().toString();
+            
+            logger.info("Downloading file: {}", file);
+            
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename=\"" + fileName + "\"")
+                    .body(resource);
+        } catch (IOException e) {
+            logger.error("Download error", e);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body("File not found: " + e.getMessage());
+        }
+    }
+    
+    // View file inline (images, PDFs, etc.)
+    @GetMapping("/view/{filePath:.+}")
+    public ResponseEntity<?> viewFile(@PathVariable String filePath) {
+        try {
+            Path file = resolveSafe(java.net.URLDecoder.decode(filePath, "UTF-8"));
             Resource resource = new UrlResource(file.toUri());
 
             String contentType = Files.probeContentType(file);
@@ -76,29 +164,12 @@ public class FileController {
         }
     }
 
-    // download file
-    @GetMapping("/download/{name}")
-    public ResponseEntity<?> downloadFile(@PathVariable String name) {
+    
+    // Read file as HTML table (for text files)
+    @GetMapping("/read/{filePath:.+}")
+    public ResponseEntity<?> readFile(@PathVariable String filePath) {
         try {
-            Path file = resolveSafe(name);
-            Resource resource = new UrlResource(file.toUri());
-
-            return ResponseEntity.ok()
-                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                    .header(HttpHeaders.CONTENT_DISPOSITION,
-                            "attachment; filename=\"" + resource.getFilename() + "\"")
-                    .body(resource);
-        } catch (IOException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body("File not found or unreadable");
-        }
-    }
-
-    // view file as simple HTML table
-    @GetMapping("/read/{name}")
-    public ResponseEntity<?> readFile(@PathVariable String name) {
-        try {
-            Path file = resolveSafe(name);
+            Path file = resolveSafe(java.net.URLDecoder.decode(filePath, "UTF-8"));
 
             String contentType = Files.probeContentType(file);
             if (contentType != null && !contentType.startsWith("text")) {
@@ -113,21 +184,19 @@ public class FileController {
                             .body(resource);
                 }
                 if (contentType.startsWith("image/")) {
-                    String html = "<html><body><img src=\"/files/view/" + name + "\" style=\"max-width:100%;height:auto;\"></body></html>";
+                    String html = "<html><body><img src=\"/files/view/" + filePath + "\" style=\"max-width:100%;height:auto;\"></body></html>";
                     return ResponseEntity.ok()
                             .contentType(MediaType.TEXT_HTML)
                             .body(html);
                 }
 
-if (contentType.equals("application/vnd.openxmlformats-officedocument.wordprocessingml.document") ||
-    contentType.equals("application/vnd.openxmlformats-officedocument.presentationml.presentation") ||
-    contentType.equals("application/msword") ||
-    contentType.equals("application/vnd.ms-powerpoint")) {
-
-    return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
-            .body("Cannot render Office file. Please download.");
-}
-
+                if (contentType.equals("application/vnd.openxmlformats-officedocument.wordprocessingml.document") ||
+                    contentType.equals("application/vnd.openxmlformats-officedocument.presentationml.presentation") ||
+                    contentType.equals("application/msword") ||
+                    contentType.equals("application/vnd.ms-powerpoint")) {
+                    return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+                            .body("Cannot render Office file. Please download.");
+                }
 
                 logger.warn("attempt to read non-text file {} (type={})", file, contentType);
                 return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
@@ -146,7 +215,7 @@ if (contentType.equals("application/vnd.openxmlformats-officedocument.wordproces
                     .contentType(MediaType.TEXT_HTML)
                     .body(html.toString());
         } catch (IOException e) {
-            logger.warn("error reading file {}: {}", name, e.getMessage());
+            logger.warn("error reading file {}: {}", filePath, e.getMessage());
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body("File not found or unreadable: " + e.getMessage());
         }

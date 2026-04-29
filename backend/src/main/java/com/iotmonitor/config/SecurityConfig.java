@@ -49,22 +49,41 @@ public class SecurityConfig {
                     "/",
                     "/login.html",
                     "/dashboard.html",
+                    "/new-dashboard.html",
                     "/performance.html",
                     "/screen.html",
                     "/history.html",
                     "/controls.html",
                     "/files.html",
+                    "/processes.html",
                     "/pair.html",
-                    "/onedrive.html",
+                    "/connect.html", 
                     "/style.css",
                     "/app.js",
+                    "/navigation.js",
+                    "/processes.js",
+                    "/dashboard.js",
                     "/manifest.json",
                     "/service-worker.js",
                     "/auth/**",
                     "/screenshot",
-                    "/onedrive/**",
                     "/reverselink/discover",
-                    "/reverselink/**"
+                    "/reverselink/**",
+                    "/favicon.ico",
+                    "/upload",
+                    "/upload/**",
+                    "/upload/**",
+                    "/upload-chunk",
+                    "/api/android/**",
+                    "/api/files/**",
+                    "/api/processes/**",
+                    "/api/alerts/**",
+                    "/metrics/**",
+                    "/processes",
+                    "/processes/**",
+                    "/apps",
+                    "/apps/**",
+                    "/apps/activity"
             ).permitAll()
 
             // Allow file viewing/downloading
@@ -77,9 +96,22 @@ public class SecurityConfig {
 
             // Secure API endpoints
             .requestMatchers(
-                    "/metrics/**",
-                    "/commands/**"
+                    "/commands/send",
+                    "/commands/history",
+                    "/commands/on",
+                    "/commands/off",
+                    "/commands/shutdown",
+                    "/commands/sleep",
+                    "/commands/restart-agent"
             ).authenticated()
+
+            // Agent command polling/result endpoints are unauthenticated because the
+            // laptop agent does not currently carry a JWT token.
+            .requestMatchers(
+                    "/commands/{deviceId}",
+                    "/commands/result",
+                    "/commands/latest"
+            ).permitAll()
 
             .anyRequest().authenticated()
         )

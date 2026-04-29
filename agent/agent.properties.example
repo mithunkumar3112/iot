@@ -1,0 +1,10 @@
+# Supabase Project Configuration
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your-anon-api-key
+
+# Render Backend URL
+RENDER_BACKEND_URL=https://your-render-app.onrender.com
+
+# User Credentials
+USER_EMAIL=user@example.com
+USER_PASSWORD=your-password

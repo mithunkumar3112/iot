@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Connect to Laptop</title>
+<style>
+body{
+font-family:Arial;
+background:#111;
+color:white;
+text-align:center;
+padding:40px;
+}
+
+input{
+padding:10px;
+width:250px;
+margin:10px;
+}
+
+button{
+padding:10px 20px;
+background:#2563eb;
+color:white;
+border:none;
+cursor:pointer;
+}
+
+#status{
+margin-top:20px;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Connect to Laptop</h2>
+
+<p>Enter the same email used on laptop</p>
+
+<input id="email" placeholder="Enter Email">
+
+<br>
+
+<button onclick="connect()">Connect</button>
+
+<div id="status"></div>
+
+<script>
+
+async function connect(){
+
+const email=document.getElementById("email").value;
+
+document.getElementById("status").innerText="Searching laptop on WiFi...";
+
+try{
+
+const res = await fetch("/reverselink/discover",{
+method:"POST",
+headers:{
+"Content-Type":"application/json"
+},
+body:JSON.stringify({
+email:email
+})
+});
+
+if(!res.ok){
+document.getElementById("status").innerText="Connection failed";
+return;
+}
+
+const data = await res.json();
+
+localStorage.setItem("token",data.token);
+
+document.getElementById("status").innerText="Connected to "+data.pcName;
+
+setTimeout(()=>{
+window.location="dashboard.html";
+},1500);
+
+}catch(e){
+
+document.getElementById("status").innerText="Error connecting";
+
+}
+
+}
+
+</script>
+
+</body>
+</html>

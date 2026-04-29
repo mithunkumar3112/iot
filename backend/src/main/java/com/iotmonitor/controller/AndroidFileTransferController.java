@@ -4,6 +4,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.io.*;
@@ -164,7 +165,7 @@ public class AndroidFileTransferController {
         }
     }
 
-    @PostMapping("/upload")
+    @PostMapping("/upload-chunk")
     public ResponseEntity<?> uploadFile(
             @RequestParam("path") String directoryPath,
             @RequestParam("filename") String filename,
@@ -206,6 +207,41 @@ public class AndroidFileTransferController {
 
         } catch (AccessDeniedException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/upload")
+    public ResponseEntity<?> uploadFileMultipart(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("folder") String folder) {
+        try {
+            // Determine the directory based on folder name
+            String userHome = System.getProperty("user.home");
+            Path dir;
+            switch (folder.toLowerCase()) {
+                case "desktop" -> dir = Paths.get(userHome, "Desktop");
+                case "documents" -> dir = Paths.get(userHome, "Documents");
+                case "downloads" -> dir = Paths.get(userHome, "Downloads");
+                default -> dir = Paths.get(userHome, folder);
+            }
+
+            // Validate the directory
+            if (!Files.isDirectory(dir)) {
+                Files.createDirectories(dir);
+            }
+
+            Path filePath = dir.resolve(file.getOriginalFilename()).normalize().toAbsolutePath();
+            if (!filePath.startsWith(dir)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Invalid filename"));
+            }
+
+            // Save the file
+            file.transferTo(filePath.toFile());
+
+            return ResponseEntity.ok(Map.of("message", "File uploaded successfully", "file", filePath.toString()));
+
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", e.getMessage()));
         }

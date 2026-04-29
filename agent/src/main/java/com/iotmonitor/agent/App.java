@@ -1,58 +1,85 @@
 package com.iotmonitor.agent;
 
-import com.iotmonitor.monitor.ScreenshotService;
+import com.iotmonitor.monitor.AppMonitor;
+import com.iotmonitor.monitor.BatteryMonitor;
+import com.iotmonitor.monitor.ProcessMonitor;
+import com.iotmonitor.monitor.ScreenMonitor;
 import com.iotmonitor.monitor.SystemMonitor;
 import com.iotmonitor.network.ApiClient;
+
+import java.awt.AWTException;
+import java.io.FileInputStream;
+import java.util.Properties;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class App {
 
     public static void main(String[] args) {
+        Properties prop = new Properties();
+        String configFile = "agent.properties";
 
-        ApiClient apiClient = new ApiClient("http://localhost:8080");
-        SystemMonitor monitor = new SystemMonitor(apiClient);
+        try (FileInputStream fis = new FileInputStream(configFile)) {
+            prop.load(fis);
+        } catch (Exception e) {
+            System.err.println("❌ Could not load config file: " + configFile);
+            return;
+        }
 
-        System.out.println("🚀 Agent started");
+        String renderBackendUrl = prop.getProperty("RENDER_BACKEND_URL", "http://localhost:5000");
 
+        // Initialize API client
+        ApiClient apiClient = new ApiClient(renderBackendUrl);
+
+        System.out.println("🚀 Laptop Monitoring Agent starting...");
+        System.out.println("🖥 Device ID: " + apiClient.getDeviceId());
+        System.out.println("🔗 Backend: " + renderBackendUrl);
+
+        // 📂 Start File Sync Service
+        String syncDir = "C:\\shared-files";
+        FileSyncService syncService = new FileSyncService(apiClient, syncDir);
+        syncService.startSync();
+
+        System.out.println("🟢 Sync service is active. Monitoring " + syncDir);
+
+        // 📈 Start Performance + Screen + Process + App monitoring
+        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(4);
+
+        SystemMonitor systemMonitor = new SystemMonitor(apiClient);
+        scheduler.scheduleAtFixedRate(systemMonitor::collectAndSendMetrics, 0, 5, TimeUnit.SECONDS);
+
+        ProcessMonitor processMonitor = new ProcessMonitor(apiClient);
+        scheduler.scheduleAtFixedRate(processMonitor::collectAndSendProcesses, 0, 10, TimeUnit.SECONDS);
+
+        // 📱 Start App Activity Tracking
+        AppMonitor appMonitor = new AppMonitor(apiClient);
+        scheduler.scheduleAtFixedRate(appMonitor::collectAndTrackApps, 0, 5, TimeUnit.SECONDS);
+
+        // 🔋 Start Battery Monitoring
+        BatteryMonitor batteryMonitor = new BatteryMonitor(apiClient);
+        scheduler.scheduleAtFixedRate(batteryMonitor::collectAndSendBatteryData, 0, 5, TimeUnit.SECONDS);
+
+        ScreenMonitor screenMonitor = null;
+        try {
+            screenMonitor = new ScreenMonitor(apiClient);
+            scheduler.scheduleAtFixedRate(screenMonitor::captureAndSend, 0, 10, TimeUnit.SECONDS);
+        } catch (AWTException e) {
+            System.err.println("⚠️ Unable to start screen monitor: " + e.getMessage());
+        }
+
+        Thread commandThread = new Thread(new CommandPoller(apiClient, syncService, screenMonitor, apiClient.getDeviceId(), 5000), "command-poller");
+        commandThread.setDaemon(true);
+        commandThread.start();
+
+        // Keep the main thread alive
         while (true) {
             try {
-                // 🔍 Check monitoring ON / OFF
-                boolean monitoringEnabled = apiClient.isMonitoringEnabled();
-
-                if (monitoringEnabled) {
-                    // 📊 Collect & send CPU / RAM
-                    monitor.collectAndSendMetrics();
-
-                    // 🖼 Capture & send screenshot
-                    byte[] screenshot = ScreenshotService.capture();
-                    if (screenshot != null) {
-                        apiClient.uploadScreenshot(screenshot);
-                    }
-
-                    System.out.println("✅ Monitoring running");
-                } else {
-                    System.out.println("⏸ Monitoring OFF (paused by server)");
-                }
-
-                // 🔍 Check server command
-                String command = apiClient.getLatestCommand();
-
-                if ("SHUTDOWN".equalsIgnoreCase(command)) {
-                    System.out.println("⏹ Shutdown command received");
-
-                    // ⚠ Windows shutdown
-                    Runtime.getRuntime().exec("shutdown -s -t 0");
-                    break;
-                }
-
-                if ("RESTART_AGENT".equalsIgnoreCase(command)) {
-                    System.out.println("🔁 Restart agent command received");
-                    System.exit(0);
-                }
-
-                Thread.sleep(5000);
-
-            } catch (Exception e) {
-                System.out.println("⚠ Agent error: " + e.getMessage());
+                Thread.sleep(60000); // 1 minute heartbeat
+            } catch (InterruptedException e) {
+                syncService.stopSync();
+                scheduler.shutdownNow();
+                break;
             }
         }
     }

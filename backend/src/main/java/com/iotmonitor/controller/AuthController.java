@@ -17,12 +17,12 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
+        String username = request.getUsername();
+        String password = request.getPassword();
 
-        // TEMPORARY LOGIN (NO DB)
-        if ("admin".equals(request.getUsername())
-                && "admin123".equals(request.getPassword())) {
-
-            String token = jwtTokenProvider.generateToken(request.getUsername());
+        // Accept any non-empty device ID and empty password for dashboard login.
+        if (username != null && !username.isBlank() && password != null && password.isEmpty()) {
+            String token = jwtTokenProvider.generateToken(username.trim());
             return ResponseEntity.ok(new AuthResponse(token));
         }
 

@@ -3,32 +3,32 @@ package com.iotmonitor.security;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 
-import java.security.Key;
+import javax.crypto.SecretKey;
 import java.util.Date;
 
 public class JwtUtil {
 
-    private static final Key key =
-            Keys.hmacShaKeyFor("verysecretkeyverysecretkey123".getBytes());
+    private static final SecretKey key =
+            Keys.hmacShaKeyFor("verysecretkeyverysecretkey1234AB".getBytes());
 
     private static final long EXPIRATION = 60 * 60 * 1000; // 1 hour
 
     public static String generateToken(String username) {
         return Jwts.builder()
-                .setSubject(username)
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION))
-                .signWith(key, SignatureAlgorithm.HS256)
+                .subject(username)
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + EXPIRATION))
+                .signWith(key)
                 .compact();
     }
 
     public static String validateToken(String token) {
         try {
             return Jwts.parser()
-                    .setSigningKey(key)
+                    .verifyWith(key)
                     .build()
-                    .parseClaimsJws(token)
-                    .getBody()
+                    .parseSignedClaims(token)
+                    .getPayload()
                     .getSubject();
         } catch (Exception e) {
             return null;

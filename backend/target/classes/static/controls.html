@@ -14,11 +14,18 @@
 <a href="dashboard.html" class="backButton"> Back</a>
 
 <div class="container">
+    <div class="cloud-toggle">
+        <label>Cloud Storage: 
+            <input type="checkbox" id="cloudToggle" onchange="toggleCloud(this.checked)">
+            <span id="cloudStatus">Loading...</span>
+        </label>
+    </div>
 
-<button onclick="turnOn()">Start Monitoring</button>
-<button onclick="turnOff()"> Stop Monitoring</button>
-<button onclick="shutdown()"> Shutdown System</button>
-
+    <button onclick="turnOn()">Start Monitoring</button>
+    <button onclick="turnOff()"> Stop Monitoring</button>
+    <button onclick="shutdown()"> Shutdown System</button>
+    <button onclick="sleep()"> Sleep System</button>
+    <button onclick="restartSystem()"> Restart System</button>
 </div>
 
 <script src="app.js"></script>

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Process Monitor</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <h2>IoT Monitor</h2>
+            </div>
+            <ul class="sidebar-menu">
+                <li data-page="dashboard"><a href="new-dashboard.html">Dashboard</a></li>
+                <li data-page="devices"><a href="#">Devices</a></li>
+                <li data-page="files"><a href="#">Files</a></li>
+                <li class="active" data-page="processes"><a href="#">Processes</a></li>
+                <li data-page="alerts"><a href="#">Alerts</a></li>
+                <li data-page="settings"><a href="#">Settings</a></li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Topbar -->
+            <header class="topbar">
+                <div class="topbar-left">
+                    <button class="menu-toggle" id="menuToggle">☰</button>
+                    <h1>Process Monitor</h1>
+                </div>
+                <div class="topbar-right">
+                    <div class="notifications">
+                        <button id="notificationBtn">🔔</button>
+                        <span class="notification-badge" id="notificationBadge">0</span>
+                    </div>
+                    <div class="user-profile">
+                        <span>Admin</span>
+                        <img src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='10' fill='%23ccc'/><text x='12' y='16' text-anchor='middle' fill='white'>A</text></svg>" alt="User">
+                    </div>
+                </div>
+            </header>
+
+            <!-- Process Content -->
+            <div class="content">
+                <div class="controls">
+                    <input type="text" id="searchInput" placeholder="Search processes...">
+                    <select id="deviceSelect">
+                        <option value="default">Default Device</option>
+                    </select>
+                    <button id="refreshBtn">Refresh</button>
+                </div>
+
+                <div class="table-container">
+                    <table id="processTable">
+                        <thead>
+                            <tr>
+                                <th>Process Name</th>
+                                <th>CPU %</th>
+                                <th>Memory (MB)</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="processes.js"></script>
+</body>
+</html>

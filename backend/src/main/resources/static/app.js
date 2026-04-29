@@ -19,11 +19,23 @@ return fetch(url, options);
 // ===============================
 
 const token = localStorage.getItem("token");
+const publicPaths = [
+    "/login.html",
+    "/dashboard.html",
+    "/performance.html",
+    "/files.html",
+    "/processes.html",
+    "/history.html",
+    "/connect.html",
+    "/pair.html",
+    "/controls.html"
+];
 
-if(!token && !window.location.pathname.includes("login.html")){
+const currentPath = window.location.pathname.toLowerCase();
+const isPublicPage = publicPaths.some(path => currentPath.endsWith(path));
 
-window.location="login.html";
-
+if (!token && !isPublicPage) {
+    window.location = "login.html";
 }
 // ======================================
 // PERFORMANCE MONITORING
@@ -184,6 +196,88 @@ async function shutdown(){
   }
 }
 
+async function sleep(){
+  try{
+    const res = await authFetch("/commands/sleep", { method: "POST" });
+    if(res.ok) alert("💤 Sleep initiated");
+    else alert("❌ Failed to sleep");
+  }catch(err){
+    console.error("Error:", err);
+    alert("❌ Error: " + err.message);
+  }
+}
+
+async function restartSystem(){
+  try{
+    const deviceId = localStorage.getItem("deviceId") || "default";
+    const res = await authFetch("/commands/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deviceId: deviceId, command: "RESTART" })
+    });
+    if(res.ok) alert("🔄 System restart initiated");
+    else alert("❌ Failed to restart system");
+  }catch(err){
+    console.error("Error:", err);
+    alert("❌ Error: " + err.message);
+  }
+}
+
+async function restart(){
+  try{
+    const res = await authFetch("/commands/restart-agent", { method: "POST" });
+    if(res.ok) alert("🔁 Restart initiated");
+    else alert("❌ Failed to restart");
+  }catch(err){
+    console.error("Error:", err);
+    alert("❌ Error: " + err.message);
+  }
+}
+
+// ======================================
+// CLOUD TOGGLE FUNCTIONS
+// ======================================
+
+async function loadCloudStatus() {
+    try {
+        const res = await authFetch("/config/cloud-status");
+        if (res.ok) {
+            const data = await res.json();
+            const toggle = document.getElementById("cloudToggle");
+            const status = document.getElementById("cloudStatus");
+            if (toggle) toggle.checked = data.enabled;
+            if (status) status.innerText = data.enabled ? "ON" : "OFF";
+        }
+    } catch (err) {
+        console.error("Error loading cloud status:", err);
+    }
+}
+
+async function toggleCloud(enabled) {
+    try {
+        const res = await authFetch("/config/cloud-toggle", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ enabled })
+        });
+        if (res.ok) {
+            const data = await res.json();
+            alert(data.message);
+            loadCloudStatus(); // Refresh status
+        } else {
+            alert("Failed to toggle cloud");
+        }
+    } catch (err) {
+        console.error("Error toggling cloud:", err);
+        alert("Error: " + err.message);
+    }
+}
+
+// Load cloud status on page load if controls page
+if (document.getElementById("cloudToggle")) {
+    loadCloudStatus();
+}
+
 // ======================================
 // FILE EXPLORER
 // ======================================
@@ -193,92 +287,57 @@ const filesContainer = document.getElementById("files");
 if(filesContainer){
 
 async function loadFiles(){
+    const deviceId = localStorage.getItem("deviceId");
 
-const res = await authFetch("/files/list");
-const files = await res.json();
+    if(!deviceId){
+        filesContainer.innerHTML = "<p>Please log in with your Device ID to view your files.</p>";
+        return;
+    }
 
-filesContainer.innerHTML="";
+    // Prefer new Supabase-based endpoint
+    let res = await authFetch(`/api/files/supabase?deviceId=${encodeURIComponent(deviceId)}`);
+    if (!res.ok) {
+        // Fallback to local DB path if Supabase is not available
+        res = await authFetch(`/api/files/device/${encodeURIComponent(deviceId)}`);
+    }
 
-files.forEach(file=>{
+    const files = await res.json();
 
-const row=document.createElement("div");
-row.className="file";
+    filesContainer.innerHTML="";
 
-const name=document.createElement("span");
-name.innerText=file;
+    files.forEach(file=>{
+        const row=document.createElement("div");
+        row.className="file";
 
-const read=document.createElement("button");
-read.innerText="Read";
-read.onclick=()=>{
-window.open("/files/read/"+file,"_blank");
-};
+        const name=document.createElement("span");
+        name.innerText=file.file_name || file.name || file;
 
-const download=document.createElement("button");
-download.innerText="Download";
-download.onclick=()=>{
-window.location="/files/download/"+file;
-};
+        const fileUrl = file.file_url || file.fileUrl || file.path || file.url;
 
-row.appendChild(name);
-row.appendChild(read);
-row.appendChild(download);
+        const openButton=document.createElement("button");
+        openButton.innerText="Open";
+        openButton.onclick=()=>{
+            if (fileUrl) window.open(fileUrl, "_blank");
+        };
 
-filesContainer.appendChild(row);
+        const download=document.createElement("button");
+        download.innerText="Download";
+        download.onclick=()=>{
+            if (fileUrl) window.location = fileUrl;
+            else if(file.path) window.location="/files/download/" + encodeURIComponent(file.path);
+        };
 
-});
+        row.appendChild(name);
+        row.appendChild(openButton);
+        row.appendChild(download);
+
+        filesContainer.appendChild(row);
+
+    });
 
 }
 
 loadFiles();
-
-}
-
-// ===============================
-// ONE DRIVE FILES
-// ===============================
-
-const onedriveContainer = document.getElementById("onedrive-files");
-
-if(onedriveContainer){
-
-async function loadOneDriveFiles(){
-
-try{
-
-const res = await authFetch("/onedrive/files");
-
-if(!res.ok){
-  onedriveContainer.innerHTML = `<p>Error loading OneDrive files (${res.status} ${res.statusText})</p>`;
-  return;
-}
-
-const data = await res.json();
-
-onedriveContainer.innerHTML="";
-
-data.value.forEach(file=>{
-
-const row=document.createElement("div");
-row.className="file";
-
-const name=document.createElement("span");
-name.innerText=file.name;
-
-row.appendChild(name);
-
-onedriveContainer.appendChild(row);
-
-});
-
-}catch(err){
-
-onedriveContainer.innerHTML="<p>Error loading OneDrive files</p>";
-
-}
-
-}
-
-loadOneDriveFiles();
 
 }
 
@@ -305,8 +364,12 @@ setInterval(loadScreenshot, 3000);
 
 async function login(){
 
-const username=document.getElementById("username").value;
-const password=document.getElementById("password").value;
+const deviceId = document.getElementById("deviceId").value.trim();
+
+if(!deviceId){
+  document.getElementById("error").innerText = "Please enter your Device ID.";
+  return;
+}
 
 try{
 
@@ -316,29 +379,30 @@ headers:{
 "Content-Type":"application/json"
 },
 body:JSON.stringify({
-username:username,
-password:password
+username: deviceId,
+password: ""
 })
 });
 
 if(!res.ok){
 
-document.getElementById("error").innerText="Invalid login";
-return;
+  document.getElementById("error").innerText="Invalid Device ID";
+  return;
 
 }
 
 const data=await res.json();
 
-// store token
+// store token + device id
 localStorage.setItem("token",data.token);
+localStorage.setItem("deviceId", deviceId);
 
 // go to dashboard
 window.location="dashboard.html";
 
 }catch(e){
 
-document.getElementById("error").innerText="Server error";
+  document.getElementById("error").innerText="Server error";
 
 }
 
@@ -353,21 +417,38 @@ const historyBox = document.getElementById("historyBox");
 if(historyBox){
   async function loadHistory(){
     try{
-      const res = await authFetch("/commands/history");
+      const deviceId = localStorage.getItem("deviceId");
+      const url = deviceId ? `/commands/history?deviceId=${encodeURIComponent(deviceId)}` : "/commands/history";
+      const res = await authFetch(url);
       if(!res.ok) throw new Error("Failed to fetch history");
       
       const history = await res.json();
       
       if(history.length === 0){
-        historyBox.innerHTML = "<p>No history found</p>";
+        historyBox.innerHTML = "<p>No activity recorded yet.</p>";
         return;
       }
       
-      let html = "<ul>";
+      let html = "<div class='history-timeline'>";
       history.forEach(entry => {
-        html += `<li>${entry}</li>`;
+        let entryClass = "history-entry";
+        let icon = "📝";
+        
+        if(entry.includes("ALERT:")){
+          entryClass += " alert-entry";
+          icon = "⚠️";
+        } else if(entry.includes("PROCESS:")){
+          entryClass += " process-entry";
+          icon = "📂";
+        }
+        
+        html += `
+          <div class="${entryClass}">
+            <span class="icon">${icon}</span>
+            <div class="details">${entry.replace("🎯 ALERT: ", "").replace("📂 PROCESS: ", "")}</div>
+          </div>`;
       });
-      html += "</ul>";
+      html += "</div>";
       
       historyBox.innerHTML = html;
     }catch(err){
@@ -380,10 +461,118 @@ if(historyBox){
   setInterval(loadHistory, 5000);
 }
 
-function logout(){
+// ======================================
+// DEVICE LISTING (for dropdowns)
+// ======================================
 
-localStorage.removeItem("token");
+/**
+ * Get list of all devices from backend
+ */
+async function getDeviceList() {
+  try {
+    const res = await authFetch("/processes/devices");
+    if (!res.ok) return [];
+    return await res.json();
+  } catch (error) {
+    console.error("Error fetching devices:", error);
+    return [];
+  }
+}
 
-window.location="login.html";
+/**
+ * Populate device dropdown
+ */
+async function populateDeviceDropdown(selectElementId) {
+  const select = document.getElementById(selectElementId);
+  if (!select) return;
 
+  const devices = await getDeviceList();
+  
+  select.innerHTML = '<option value="">All Devices</option>';
+  devices.forEach(device => {
+    const option = document.createElement("option");
+    option.value = device;
+    option.textContent = device;
+    select.appendChild(option);
+  });
+}
+
+// ======================================
+// APP ACTIVITY TRACKING
+// ======================================
+
+/**
+ * Setup WebSocket for app activity updates
+ */
+function setupAppActivityWebSocket() {
+  try {
+    // Check if we're already connected
+    if (window.appActivityWs) return;
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    window.appActivityWs = new WebSocket(protocol + '//' + window.location.host + '/ws');
+
+    window.appActivityWs.onopen = () => {
+      console.log('✅ App Activity WebSocket connected');
+    };
+
+    window.appActivityWs.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+
+        // Handle app activity events
+        if (message.type === 'APP_EVENT') {
+          handleAppActivityUpdate(message.data);
+        }
+
+        // Handle alerts
+        if (message.type === 'APP_ALERT') {
+          handleAppAlert(message);
+        }
+      } catch (e) {
+        console.error('Error parsing app activity message:', e);
+      }
+    };
+
+    window.appActivityWs.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
+    window.appActivityWs.onclose = () => {
+      console.log('⚠️ App Activity WebSocket closed, will attempt to reconnect...');
+      // Attempt to reconnect after 3 seconds
+      setTimeout(setupAppActivityWebSocket, 3000);
+    };
+  } catch (e) {
+    console.error('WebSocket setup error:', e);
+  }
+}
+
+/**
+ * Handle app activity update from WebSocket
+ */
+function handleAppActivityUpdate(activity) {
+  console.log('📱 App activity update:', activity);
+  // This can be overridden by pages that need to handle updates
+  if (typeof onAppActivityUpdate === 'function') {
+    onAppActivityUpdate(activity);
+  }
+}
+
+/**
+ * Handle app alert from WebSocket
+ */
+function handleAppAlert(alert) {
+  console.log('🚨 App alert:', alert);
+  // Show notification
+  if (typeof showAppAlert === 'function') {
+    showAppAlert(alert);
+  } else {
+    console.warn('Alert:', alert.message);
+  }
+}
+
+// Initialize WebSocket on page load if authenticated
+if (token) {
+  document.addEventListener('DOMContentLoaded', setupAppActivityWebSocket);
 }

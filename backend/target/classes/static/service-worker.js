@@ -53,21 +53,26 @@ self.addEventListener('fetch', event => {
 
   // For API calls - network first, then cache
   if (url.pathname.includes('/files/') || url.pathname.includes('/metrics/')) {
+    // Use a cache key that ignores Authorization / other transient headers so
+    // cached responses can be served when the app is offline (e.g. when open
+    // via navigation or window.open which doesn't include auth headers).
+    const cacheKey = new Request(url.toString(), { method: request.method });
+
     event.respondWith(
       fetch(request)
         .then(response => {
           if (!response || response.status !== 200) {
-            return caches.match(request);
+            return caches.match(cacheKey);
           }
           // Cache successful API responses
           const clonedResponse = response.clone();
           caches.open(RUNTIME_CACHE).then(cache => {
-            cache.put(request, clonedResponse);
+            cache.put(cacheKey, clonedResponse);
           });
           return response;
         })
         .catch(() => {
-          return caches.match(request);
+          return caches.match(cacheKey);
         })
     );
     return;

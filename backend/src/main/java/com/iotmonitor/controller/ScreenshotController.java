@@ -1,5 +1,6 @@
 package com.iotmonitor.controller;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -15,14 +16,20 @@ import java.nio.file.Paths;
 @RequestMapping("/screenshot")
 public class ScreenshotController {
 
-    private static final Path FILE = Paths.get("screenshots/latest.png");
+    @Value("${app.file.storage-dir:C:/shared-files/screenshots}")
+    private String screenshotDir;
+
+    private Path getScreenshotFile() {
+        return Paths.get(screenshotDir).resolve("latest.png");
+    }
 
     // Agent uploads screenshot here
     @PostMapping
     public void upload(@RequestBody byte[] image) throws IOException {
 
-        Files.createDirectories(FILE.getParent());
-        Files.write(FILE, image);
+        Path file = getScreenshotFile();
+        Files.createDirectories(file.getParent());
+        Files.write(file, image);
 
         System.out.println("Screenshot updated");
     }
@@ -31,7 +38,7 @@ public class ScreenshotController {
     @GetMapping
     public ResponseEntity<FileSystemResource> getScreenshot() {
 
-        File file = FILE.toFile();
+        File file = getScreenshotFile().toFile();
 
         if (!file.exists()) {
             return ResponseEntity.notFound().build();

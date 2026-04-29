@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Monitor Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <h2>IoT Monitor</h2>
+            </div>
+            <ul class="sidebar-menu">
+                <li class="active" data-page="dashboard"><a href="#">Dashboard</a></li>
+                <li data-page="devices"><a href="#">Devices</a></li>
+                <li data-page="files"><a href="#">Files</a></li>
+                <li data-page="processes"><a href="processes.html">Processes</a></li>
+                <li data-page="alerts"><a href="#">Alerts</a></li>
+                <li data-page="settings"><a href="#">Settings</a></li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Topbar -->
+            <header class="topbar">
+                <div class="topbar-left">
+                    <button class="menu-toggle" id="menuToggle">☰</button>
+                    <h1>Dashboard</h1>
+                </div>
+                <div class="topbar-right">
+                    <div class="notifications">
+                        <button id="notificationBtn">🔔</button>
+                        <span class="notification-badge" id="notificationBadge">0</span>
+                    </div>
+                    <div class="user-profile">
+                        <span>Admin</span>
+                        <img src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='10' fill='%23ccc'/><text x='12' y='16' text-anchor='middle' fill='white'>A</text></svg>" alt="User">
+                    </div>
+                </div>
+            </header>
+
+            <!-- Dashboard Content -->
+            <div class="content" id="dashboardContent">
+                <!-- Cards -->
+                <div class="cards-grid">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Total Files</h3>
+                            <span class="card-icon">📁</span>
+                        </div>
+                        <div class="card-value" id="totalFiles">0</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Active Devices</h3>
+                            <span class="card-icon">💻</span>
+                        </div>
+                        <div class="card-value" id="activeDevices">1</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>CPU Usage</h3>
+                            <span class="card-icon">⚙️</span>
+                        </div>
+                        <div class="card-value" id="cpuUsage">0%</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>RAM Usage</h3>
+                            <span class="card-icon">🧠</span>
+                        </div>
+                        <div class="card-value" id="ramUsage">0%</div>
+                    </div>
+                </div>
+
+                <!-- Charts -->
+                <div class="charts-grid">
+                    <div class="chart-container">
+                        <h3>CPU Usage Over Time</h3>
+                        <canvas id="cpuChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <h3>File Upload Trend</h3>
+                        <canvas id="fileChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Tables -->
+                <div class="tables-grid">
+                    <div class="table-container">
+                        <h3>Recent Files</h3>
+                        <table id="recentFilesTable">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Size</th>
+                                    <th>Uploaded</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div class="table-container">
+                        <h3>Process List</h3>
+                        <table id="processTable">
+                            <thead>
+                                <tr>
+                                    <th>Process Name</th>
+                                    <th>CPU %</th>
+                                    <th>Memory</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="dashboard.js"></script>
+</body>
+</html>
