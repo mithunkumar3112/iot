@@ -53,13 +53,72 @@ var shell = DashboardShell.init({
 });
 var alerts = [];
 var processes = [];
-function pct(value) { return Math.min(100, Math.max(0, Math.round(Number(value || 0)))); }
+var lastMetrics = { cpu: null, ram: null, battery: null, uptime: null };
+function pct(value) { return Math.min(100, Math.max(0, Math.round(Number(value)))); }
+function parseMetric(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string') {
+    var trimmed = value.trim();
+    if (trimmed === '') return null;
+    var num = Number(trimmed);
+    return Number.isFinite(num) ? num : null;
+  }
+  return null;
+}
+function setCachedMetrics(metrics) {
+  try {
+    localStorage.setItem('dashboardLastMetrics', JSON.stringify(metrics));
+  } catch (e) {
+    /* ignore storage failures */
+  }
+}
+function loadCachedMetrics() {
+  try {
+    var cached = localStorage.getItem('dashboardLastMetrics');
+    if (!cached) return null;
+    return JSON.parse(cached);
+  } catch (e) {
+    return null;
+  }
+}
+function restoreCachedMetrics() {
+  var cached = loadCachedMetrics();
+  if (!cached) return;
+  if (parseMetric(cached.cpu) !== null || parseMetric(cached.ram) !== null || parseMetric(cached.battery) !== null || parseMetric(cached.uptime) !== null) {
+    lastMetrics = Object.assign(lastMetrics, cached);
+    renderMetrics(cached);
+  }
+}
 function renderMetrics(data) {
-  var cpu = pct(data.cpu), ram = pct(data.ram), battery = data.battery == null ? null : pct(data.battery);
-  document.getElementById('cpuVal').textContent = cpu + '%'; document.getElementById('cpuBar').style.width = cpu + '%';
-  document.getElementById('ramVal').textContent = ram + '%'; document.getElementById('ramBar').style.width = ram + '%';
-  document.getElementById('batteryVal').textContent = battery == null ? '--%' : battery + '%'; document.getElementById('batteryBar').style.width = (battery || 0) + '%';
-  var up = Number(data.uptime || 0); document.getElementById('uptimeVal').textContent = up ? Math.floor(up / 3600) + 'h ' + Math.floor((up % 3600) / 60) + 'm' : '--';
+  var cpuValue = parseMetric(data.cpu);
+  if (cpuValue !== null) {
+    lastMetrics.cpu = cpuValue;
+    var cpu = pct(cpuValue);
+    document.getElementById('cpuVal').textContent = cpu + '%';
+    document.getElementById('cpuBar').style.width = cpu + '%';
+  }
+  var ramValue = parseMetric(data.ram);
+  if (ramValue !== null) {
+    lastMetrics.ram = ramValue;
+    var ram = pct(ramValue);
+    document.getElementById('ramVal').textContent = ram + '%';
+    document.getElementById('ramBar').style.width = ram + '%';
+  }
+  var batteryValue = parseMetric(data.battery);
+  if (batteryValue !== null) {
+    lastMetrics.battery = batteryValue;
+    var battery = pct(batteryValue);
+    document.getElementById('batteryVal').textContent = battery + '%';
+    document.getElementById('batteryBar').style.width = battery + '%';
+  }
+  var uptimeValue = parseMetric(data.uptime);
+  if (uptimeValue !== null) {
+    lastMetrics.uptime = uptimeValue;
+    var up = Math.floor(uptimeValue);
+    document.getElementById('uptimeVal').textContent = Math.floor(up / 3600) + 'h ' + Math.floor((up % 3600) / 60) + 'm';
+  }
+  setCachedMetrics(lastMetrics);
   if (data.deviceId) { DashboardShell.setDevice(data.deviceId); shell.setStatus('Live', true); }
 }
 function renderProcesses() {
@@ -77,7 +136,17 @@ function renderAlerts() {
   }).join('') : '<tr><td colspan="3"><div class="empty-state">No alerts yet.</div></td></tr>';
 }
 function loadMetrics() {
-  fetch('/metrics/latest').then(function(r){ return r.ok ? r.json() : {}; }).then(renderMetrics).catch(function(){ shell.setStatus('Waiting', false); });
+  fetch('/metrics/latest')
+    .then(function(r) {
+      if (!r.ok) throw new Error('Metrics fetch failed');
+      return r.json();
+    })
+    .then(function(data) {
+      if (parseMetric(data.cpu) !== null || parseMetric(data.ram) !== null || parseMetric(data.battery) !== null || parseMetric(data.uptime) !== null) {
+        renderMetrics(data);
+      }
+    })
+    .catch(function() { shell.setStatus('Waiting', false); });
   var device = shell.getDevice();
   if (device) fetch('/processes/latest?deviceId=' + encodeURIComponent(device) + '&limit=20').then(function(r){ return r.ok ? r.json() : []; }).then(function(rows){ processes = Array.isArray(rows) ? rows : []; renderProcesses(); });
   fetch('/security/alerts' + (device ? '?deviceId=' + encodeURIComponent(device) : '')).then(function(r){ return r.ok ? r.json() : []; }).then(function(rows){ alerts = Array.isArray(rows) ? rows : []; renderAlerts(); });
@@ -105,6 +174,7 @@ DashboardShell.connectStomp(['/topic/processes','/topic/security-alerts','/topic
 window.addEventListener('devicechange', loadMetrics);
 window.addEventListener('shellrefresh', loadMetrics);
 showCommands(location.hash === '#commands');
+restoreCachedMetrics();
 loadMetrics();
 setInterval(loadMetrics, 5000);
 </script>
