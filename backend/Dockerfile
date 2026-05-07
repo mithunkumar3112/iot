@@ -5,7 +5,7 @@ WORKDIR /app
 
 COPY . .
 
-RUN mvn -B package -DskipTests
+RUN mvn clean package -DskipTests
 
 # Runtime stage
 FROM eclipse-temurin:21-jre
