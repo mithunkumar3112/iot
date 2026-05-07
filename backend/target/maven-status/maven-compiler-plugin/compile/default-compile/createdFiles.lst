@@ -1,3 +1,4 @@
+com\iotmonitor\controller\BatteryController.class
 com\iotmonitor\security\JwtFilter.class
 com\iotmonitor\controller\FileController.class
 com\iotmonitor\dto\CommandRequest.class
@@ -6,10 +7,13 @@ com\iotmonitor\dto\EmailLoginRequest.class
 com\iotmonitor\controller\ProcessController.class
 com\iotmonitor\security\JwtUtil.class
 com\iotmonitor\model\AppActivity.class
+com\iotmonitor\repository\ActiveWindowActivityRepository.class
 com\iotmonitor\repository\AlertRepository.class
 com\iotmonitor\dto\AuthResponse.class
 com\iotmonitor\discovery\UdpDiscoveryServer.class
 com\iotmonitor\repository\FileMetadataRepository.class
+com\iotmonitor\model\ActiveWindowActivity.class
+com\iotmonitor\controller\ActiveWindowController.class
 com\iotmonitor\controller\EmailDiscoveryController.class
 com\iotmonitor\controller\AgentFileUploadController.class
 com\iotmonitor\model\Alert.class
@@ -18,6 +22,7 @@ com\iotmonitor\repository\AppActivityRepository.class
 com\iotmonitor\config\WebSocketConfig.class
 com\iotmonitor\controller\AppActivityController.class
 com\iotmonitor\controller\ScreenshotController.class
+com\iotmonitor\controller\BatteryController$BatteryData.class
 com\iotmonitor\controller\ScreenMonitoringController.class
 com\iotmonitor\dto\LoginRequest.class
 com\iotmonitor\dto\FileInfo.class

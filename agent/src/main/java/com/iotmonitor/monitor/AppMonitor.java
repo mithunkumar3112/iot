@@ -36,7 +36,7 @@ public class AppMonitor {
         trackedApps.addAll(Arrays.asList(
             "chrome.exe", "firefox.exe", "msedge.exe", "opera.exe",
             "spotify.exe", "vlc.exe", "teams.exe", "slack.exe",
-            "discord.exe", "vscode.exe", "idea64.exe", "sublime_text.exe",
+            "discord.exe", "code.exe", "vscode.exe", "idea64.exe", "sublime_text.exe",
             "notepad.exe", "calc.exe", "explorer.exe", "powershell.exe",
             "cmd.exe", "putty.exe", "filezilla.exe", "7zfm.exe",
             "winrar.exe", "gimp.exe", "photoshop.exe", "premiere.exe",
@@ -47,7 +47,7 @@ public class AppMonitor {
         trackedApps.addAll(Arrays.asList(
             "chrome", "firefox", "safari", "opera",
             "spotify", "vlc", "teams", "slack",
-            "discord", "vscode", "idea", "sublime",
+            "discord", "code", "vscode", "idea", "sublime",
             "terminal", "bash", "zsh", "python",
             "java", "node", "npm", "git"
         ));
@@ -137,6 +137,12 @@ public class AppMonitor {
      */
     private String extractDisplayName(String processName) {
         String lower = processName.toLowerCase();
+
+        if (lower.equals("chrome.exe") || lower.equals("chrome")) return "Chrome";
+        if (lower.equals("spotify.exe") || lower.equals("spotify")) return "Spotify";
+        if (lower.equals("code.exe") || lower.equals("code") || lower.equals("vscode.exe") || lower.equals("vscode")) {
+            return "VS Code";
+        }
 
         // Remove extension
         if (lower.endsWith(".exe")) {

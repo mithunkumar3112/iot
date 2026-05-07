@@ -54,18 +54,24 @@ public class SystemMonitor {
         // Uptime
         long uptime = os.getSystemUptime();
 
-        // Battery
+        // Battery with charging status
         List<PowerSource> powerSources = hw.getPowerSources();
-        double battery = -1;
+        double battery = -1.0;
+        boolean isCharging = false;
 
         if (powerSources != null && !powerSources.isEmpty()) {
-            battery = powerSources.get(0).getRemainingCapacityPercent();
+            PowerSource ps = powerSources.get(0);
+            battery = ps.getRemainingCapacityPercent();
+            // Ensure battery is in valid range (0-100)
+            if (battery < 0) battery = -1.0;
+            if (battery > 100) battery = 100.0;
+            isCharging = ps.isCharging();
         }
 
-        // JSON
+        // JSON with battery charging status
         String json = String.format(
-                "{ \"cpu\": %.2f, \"ram\": %.2f, \"uptime\": %d, \"battery\": %.2f }",
-                cpuLoad, ramUsage, uptime, battery
+                "{ \"deviceId\": \"%s\", \"cpu\": %.2f, \"ram\": %.2f, \"uptime\": %d, \"battery\": %.2f, \"charging\": %s }",
+                apiClient.getDeviceId().replace("\"", "\\\""), cpuLoad, ramUsage, uptime, battery, isCharging
         );
 
         apiClient.sendMetrics(json);

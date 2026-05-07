@@ -15,12 +15,17 @@ public class AlertService {
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
 
-    public void createAlert(String deviceId, String type, String message, String severity) {
+    public Alert createAlert(String deviceId, String type, String message, String severity) {
         Alert alert = new Alert(deviceId, type, message, severity);
-        alertRepository.save(alert);
+        Alert saved = alertRepository.save(alert);
 
         // Emit WebSocket event
-        messagingTemplate.convertAndSend("/topic/alerts", alert);
+        messagingTemplate.convertAndSend("/topic/alerts", saved);
+        return saved;
+    }
+
+    public Alert recordAlert(String deviceId, String type, String message, String severity) {
+        return alertRepository.save(new Alert(deviceId, type, message, severity));
     }
 
     public void checkAndCreateAlerts(String deviceId, double cpu, double ram, double processCpu) {

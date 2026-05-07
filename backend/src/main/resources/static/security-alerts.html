@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Security Alerts</title>
+  <link rel="stylesheet" href="dashboard-shell.css">
+  <style>
+    .alert-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr); gap: 18px; }
+    .alert-card { display: grid; grid-template-columns: 108px minmax(0, 1fr); gap: 18px; padding: 18px; border-top: 1px solid rgba(148,163,184,.12); }
+    .alert-card:hover { background: rgba(59,130,246,.06); }
+    .alert-time { color: var(--muted); font-size: 14px; }
+    .preview { margin-top: 12px; max-width: 360px; width: 100%; border-radius: 14px; border: 1px solid var(--border); display: block; }
+    .badge-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    @media (max-width: 980px) { .alert-grid { grid-template-columns: 1fr; } .alert-card { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<template id="pageTemplate">
+  <div class="alert-grid">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Security Alerts</div>
+          <div class="muted" id="alertSummary">Real-time warnings from connected laptops</div>
+        </div>
+        <span class="badge badge-danger">Live</span>
+      </div>
+      <div id="alertList"><div class="empty-state">Loading security alerts...</div></div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">USB Activity</div>
+          <div class="muted" id="usbSummary">Pendrives, HDDs, Android, iPhone</div>
+        </div>
+      </div>
+      <div id="usbList"><div class="empty-state">Loading USB activity...</div></div>
+    </div>
+  </div>
+</template>
+<script src="dashboard-shell.js"></script>
+<script>
+var content = document.getElementById('pageTemplate').content.cloneNode(true);
+var shell = DashboardShell.init({
+  active: 'security',
+  title: 'Security Alerts',
+  subtitle: 'Real-time USB, login, screenshot, and system security events.',
+  content: content
+});
+var alerts = [];
+var usbRows = [];
+
+function connectionLabel(type) {
+  return ({
+    PENDRIVE: 'Pendrive',
+    EXTERNAL_HDD: 'External HDD',
+    ANDROID_PHONE: 'Android phone',
+    IPHONE: 'iPhone',
+    USB_DEVICE: 'USB device'
+  })[type] || String(type || 'USB device').replace(/_/g, ' ');
+}
+
+function screenshotHtml(url) {
+  return url ? '<img class="preview" src="' + encodeURI(url) + '" alt="Security screenshot preview">' : '';
+}
+
+function renderAlerts() {
+  var device = shell.getDevice();
+  var rows = alerts.filter(function(row) { return !device || row.deviceId === device; });
+  document.getElementById('alertSummary').textContent = rows.length + ' alerts shown';
+  shell.setDevices(alerts.concat(usbRows).map(function(row) { return row.deviceId; }));
+  document.getElementById('alertList').innerHTML = rows.length ? rows.map(function(row) {
+    var isScreenshot = row.type === 'SCREENSHOT_ACTIVITY';
+    var badge = isScreenshot ? 'SCREENSHOT WARNING' : (row.severity || row.type || 'ALERT');
+    var badgeClass = isScreenshot || row.severity === 'CRITICAL' || row.severity === 'HIGH' ? 'badge-danger' : 'badge-warning';
+    return '<article class="alert-card"><div class="alert-time">' + DashboardShell.formatTime(row.timestamp) +
+      '</div><div><div class="row-title">' + DashboardShell.escapeHtml(row.message || row.type || 'Security alert') +
+      '</div><div class="row-sub">' + DashboardShell.escapeHtml(row.deviceName || row.deviceId || 'Unknown device') +
+      '</div><div class="badge-row"><span class="badge ' + badgeClass + '">' + DashboardShell.escapeHtml(badge) +
+      '</span><span class="badge badge-info">' + DashboardShell.escapeHtml(row.deviceId || 'Unknown') +
+      '</span>' + (row.processName ? '<span class="badge badge-warning">Process: ' + DashboardShell.escapeHtml(row.processName) + '</span>' : '') +
+      (row.source ? '<span class="badge badge-info">Signal: ' + DashboardShell.escapeHtml(row.source) + '</span>' : '') +
+      '</div>' + screenshotHtml(row.screenshotUrl) + '</div></article>';
+  }).join('') : '<div class="empty-state">No alerts for this filter.</div>';
+}
+
+function renderUsb() {
+  var device = shell.getDevice();
+  var rows = usbRows.filter(function(row) { return !device || row.deviceId === device; });
+  document.getElementById('usbSummary').textContent = rows.length + ' USB events';
+  document.getElementById('usbList').innerHTML = rows.length ? rows.map(function(row) {
+    return '<article class="alert-card"><div class="alert-time">' + DashboardShell.formatTime(row.timestamp) +
+      '</div><div><div class="row-title">' + DashboardShell.escapeHtml(row.deviceName || 'USB device') +
+      '</div><div class="row-sub">' + DashboardShell.escapeHtml(row.deviceId || 'Unknown device') +
+      '</div><div class="badge-row"><span class="badge badge-info">' + DashboardShell.escapeHtml(connectionLabel(row.connectionType)) +
+      '</span><span class="badge ' + (row.status === 'CONNECTED' ? 'badge-connected' : 'badge-warning') + '">' +
+      DashboardShell.escapeHtml(row.status || 'CONNECTED') + '</span></div>' + screenshotHtml(row.screenshotUrl) + '</div></article>';
+  }).join('') : '<div class="empty-state">No USB activity for this filter.</div>';
+}
+
+function renderAll() {
+  renderAlerts();
+  renderUsb();
+}
+
+function loadData() {
+  var device = shell.getDevice();
+  var suffix = device ? '?deviceId=' + encodeURIComponent(device) : '';
+  Promise.all([
+    fetch('/security/alerts' + suffix).then(function(r) { return r.ok ? r.json() : []; }),
+    fetch('/security/usb' + suffix).then(function(r) { return r.ok ? r.json() : []; })
+  ]).then(function(results) {
+    alerts = Array.isArray(results[0]) ? results[0] : [];
+    usbRows = Array.isArray(results[1]) ? results[1] : [];
+    renderAll();
+  }).catch(function() {
+    document.getElementById('alertList').innerHTML = '<div class="empty-state">Unable to load security alerts.</div>';
+    document.getElementById('usbList').innerHTML = '<div class="empty-state">Unable to load USB activity.</div>';
+  });
+}
+
+DashboardShell.connectStomp(['/topic/security-alerts', '/topic/usb-alerts'], function(payload) {
+  var row = payload.data || payload;
+  if (payload.event === 'usb_alert' || payload.type === 'usb_alert') {
+    usbRows.unshift(row);
+    DashboardShell.toast(connectionLabel(row.connectionType) + ' ' + (row.status || 'updated'), (row.deviceName || 'USB device') + ' on ' + (row.deviceId || 'unknown'), 'danger');
+  } else {
+    alerts.unshift(row);
+    DashboardShell.toast('Security alert', row.message || row.type || 'Security event', 'danger');
+  }
+  renderAll();
+});
+window.addEventListener('devicechange', loadData);
+window.addEventListener('shellrefresh', loadData);
+loadData();
+</script>
+</body>
+</html>

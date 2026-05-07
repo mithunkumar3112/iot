@@ -12,11 +12,18 @@ public class Alert {
     private Long id;
 
     private String deviceId;
+    @Column(name = "device_name")
+    private String deviceName;
     private String type; // CPU, RAM, PROCESS
     private String message;
     private String severity; // LOW, MEDIUM, HIGH, CRITICAL
     private LocalDateTime timestamp;
     private boolean acknowledged = false;
+    @Column(name = "process_name")
+    private String processName;
+    @Column(name = "screenshot_url")
+    private String screenshotUrl;
+    private String source;
 
     // Constructors
     public Alert() {}
@@ -36,6 +43,9 @@ public class Alert {
     public String getDeviceId() { return deviceId; }
     public void setDeviceId(String deviceId) { this.deviceId = deviceId; }
 
+    public String getDeviceName() { return deviceName; }
+    public void setDeviceName(String deviceName) { this.deviceName = deviceName; }
+
     public String getType() { return type; }
     public void setType(String type) { this.type = type; }
 
@@ -50,4 +60,13 @@ public class Alert {
 
     public boolean isAcknowledged() { return acknowledged; }
     public void setAcknowledged(boolean acknowledged) { this.acknowledged = acknowledged; }
+
+    public String getProcessName() { return processName; }
+    public void setProcessName(String processName) { this.processName = processName; }
+
+    public String getScreenshotUrl() { return screenshotUrl; }
+    public void setScreenshotUrl(String screenshotUrl) { this.screenshotUrl = screenshotUrl; }
+
+    public String getSource() { return source; }
+    public void setSource(String source) { this.source = source; }
 }

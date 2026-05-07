@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clipboard</title>
+  <link rel="stylesheet" href="dashboard-shell.css">
+  <style>
+    .clipboard-box { min-height: 280px; max-height: 420px; overflow:auto; white-space:pre-wrap; line-height:1.6; }
+    .history-item { padding: 14px 16px; border-top: 1px solid rgba(148,163,184,.12); cursor:pointer; }
+    .history-item:hover { background: rgba(59,130,246,.06); }
+  </style>
+</head>
+<body>
+<template id="pageTemplate">
+  <div class="grid cols-2">
+    <div class="card">
+      <div class="card-head"><div><div class="card-title">Latest Clipboard</div><div class="muted" id="clipboardMeta">Select a device</div></div><button class="btn secondary" id="copyBtn">Copy</button></div>
+      <div class="card-pad clipboard-box" id="clipboardBox"><div class="empty-state">Select a device to view clipboard content.</div></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div><div class="card-title">Clipboard History</div><div class="muted">Live copied text and images</div></div></div>
+      <div id="historyList"><div class="empty-state">No history yet.</div></div>
+    </div>
+  </div>
+</template>
+<script src="dashboard-shell.js"></script>
+<script>
+var content = document.getElementById('pageTemplate').content.cloneNode(true);
+var shell = DashboardShell.init({ active: 'clipboard', title: 'Clipboard', subtitle: 'Monitor copied content and clipboard history in real time.', content: content });
+var historyRows = [];
+var selectedEntry = null;
+function authFetch(url, options) {
+  options = options || {};
+  var token = localStorage.getItem('token');
+  options.headers = Object.assign({}, options.headers || {}, token ? { Authorization: 'Bearer ' + token } : {});
+  return fetch(url, options);
+}
+function renderContent(entry) {
+  selectedEntry = entry;
+  if (!entry || entry.content == null) {
+    document.getElementById('clipboardBox').innerHTML = '<div class="empty-state">No clipboard content.</div>';
+    document.getElementById('clipboardMeta').textContent = 'No content';
+    return;
+  }
+  document.getElementById('clipboardMeta').textContent = (entry.contentType || 'text') + ' - ' + DashboardShell.formatDateTime(entry.timestamp);
+  document.getElementById('clipboardBox').innerHTML = entry.contentType === 'image'
+    ? '<div class="empty-state">Image clipboard detected<br>' + DashboardShell.escapeHtml(entry.content) + '</div>'
+    : DashboardShell.escapeHtml(entry.content);
+}
+function renderHistory(rows) {
+  historyRows = Array.isArray(rows) ? rows : [];
+  if (!historyRows.length) {
+    document.getElementById('historyList').innerHTML = '<div class="empty-state">No history yet.</div>';
+    return;
+  }
+  document.getElementById('historyList').innerHTML = historyRows.map(function(row) {
+    var preview = row.contentType === 'image' ? 'Image clipboard' : String(row.content || '').replace(/\s+/g, ' ').slice(0, 90);
+    return '<div class="history-item" data-id="' + row.id + '"><div class="row-title">' + DashboardShell.escapeHtml(preview) +
+      '</div><div class="row-sub">' + DashboardShell.escapeHtml(row.deviceId || '') + ' - ' + DashboardShell.formatDateTime(row.timestamp) +
+      '</div><div style="margin-top:8px;"><span class="badge badge-info">' + DashboardShell.escapeHtml(row.contentType || 'text') + '</span></div></div>';
+  }).join('');
+}
+function loadDevices() {
+  authFetch('/clipboard/devices').then(function(r) { return r.ok ? r.json() : []; }).then(function(devices) {
+    shell.setDevices(Array.isArray(devices) ? devices : []);
+    loadClipboard();
+  });
+}
+function loadClipboard() {
+  var device = shell.getDevice();
+  if (!device) { renderContent(null); renderHistory([]); return; }
+  Promise.all([
+    authFetch('/clipboard/latest/' + encodeURIComponent(device)).then(function(r) { return r.ok ? r.json() : null; }),
+    authFetch('/clipboard/history/' + encodeURIComponent(device) + '?limit=30').then(function(r) { return r.ok ? r.json() : []; })
+  ]).then(function(results) { renderContent(results[0]); renderHistory(results[1]); });
+}
+document.getElementById('historyList').addEventListener('click', function(event) {
+  var item = event.target.closest('.history-item');
+  if (!item) return;
+  var row = historyRows.find(function(r) { return String(r.id) === item.dataset.id; });
+  if (row) renderContent(row);
+});
+document.getElementById('copyBtn').addEventListener('click', function() {
+  if (!selectedEntry || selectedEntry.content == null || selectedEntry.contentType === 'image') return;
+  navigator.clipboard.writeText(selectedEntry.content).then(function() { DashboardShell.toast('Clipboard', 'Copied to browser clipboard', 'success'); });
+});
+DashboardShell.connectStomp(['/topic/clipboard'], function(payload) {
+  if (payload.type !== 'CLIPBOARD_UPDATED' || !payload.data) return;
+  if (payload.data.deviceId !== shell.getDevice()) return;
+  renderContent(payload.data);
+  historyRows.unshift(payload.data);
+  renderHistory(historyRows.slice(0, 30));
+  DashboardShell.toast('Clipboard updated', payload.data.deviceId, 'success');
+});
+window.addEventListener('devicechange', loadClipboard);
+window.addEventListener('shellrefresh', loadClipboard);
+loadDevices();
+</script>
+</body>
+</html>

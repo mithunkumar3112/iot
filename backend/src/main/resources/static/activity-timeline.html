@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Activity Timeline</title>
+  <link rel="stylesheet" href="dashboard-shell.css">
+  <style>
+    .timeline { position: relative; padding: 8px 18px 18px 32px; }
+    .timeline:before { content:""; position:absolute; left:16px; top:18px; bottom:18px; width:2px; background:rgba(148,163,184,.22); }
+    .event { position:relative; display:grid; grid-template-columns:104px minmax(0,1fr); gap:18px; padding:16px 0; border-top:1px solid rgba(148,163,184,.12); }
+    .event:before { content:""; position:absolute; left:-21px; top:22px; width:12px; height:12px; border-radius:50%; background:var(--blue); box-shadow:0 0 0 5px rgba(59,130,246,.12); }
+    @media (max-width: 640px) { .event { grid-template-columns:1fr; gap:6px; } }
+  </style>
+</head>
+<body>
+<template id="pageTemplate">
+  <div class="grid cols-3" style="margin-bottom:18px;">
+    <div class="card card-pad"><div class="metric-label">Timeline events</div><div class="metric-value" id="eventCount">0</div></div>
+    <div class="card card-pad"><div class="metric-label">Current app</div><div class="metric-value" id="currentApp">--</div></div>
+    <div class="card card-pad"><div class="metric-label">Device</div><div class="metric-value" id="deviceMetric">All</div></div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <div><div class="card-title">Live Activity Timeline</div><div class="muted">App/window open and close events with exact timestamps.</div></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;"><input class="input" id="searchInput" placeholder="Search apps"><input class="device-select" id="dateInput" type="date"></div>
+    </div>
+    <div class="timeline" id="timelineList"><div class="empty-state">Loading activity timeline...</div></div>
+  </div>
+</template>
+<script src="dashboard-shell.js"></script>
+<script>
+var content = document.getElementById('pageTemplate').content.cloneNode(true);
+var shell = DashboardShell.init({ active: 'timeline', title: 'Activity Timeline', subtitle: 'Foreground app activity with live WebSocket updates.', content: content });
+var rows = [];
+function isoDate(date) { return date.toISOString().slice(0, 10); }
+function parseTime(value) { var d = new Date(value); return isNaN(d.getTime()) ? new Date() : d; }
+function renderTimeline() {
+  var device = shell.getDevice();
+  var query = String(document.getElementById('searchInput').value || '').toLowerCase();
+  var date = document.getElementById('dateInput').value;
+  var filtered = rows.filter(function(row) {
+    var d = parseTime(row.timestamp);
+    return (!device || row.deviceId === device) && (!query || String(row.activeWindow || '').toLowerCase().indexOf(query) >= 0) && (!date || isoDate(d) === date);
+  }).sort(function(a, b) { return parseTime(b.timestamp) - parseTime(a.timestamp); });
+  document.getElementById('eventCount').textContent = filtered.length;
+  document.getElementById('currentApp').textContent = filtered[0] ? filtered[0].activeWindow : '--';
+  document.getElementById('deviceMetric').textContent = device || 'All';
+  shell.setDevices(rows.map(function(row) { return row.deviceId; }));
+  if (!filtered.length) {
+    document.getElementById('timelineList').innerHTML = '<div class="empty-state">No activity for this filter.</div>';
+    return;
+  }
+  document.getElementById('timelineList').innerHTML = filtered.map(function(row) {
+    return '<div class="event"><div class="muted">' + DashboardShell.formatTime(row.timestamp) +
+      '</div><div><div class="row-title">' + DashboardShell.escapeHtml(row.activeWindow || 'Unknown app') +
+      ' <span class="badge badge-active">OPENED</span></div><div class="row-sub">' +
+      DashboardShell.escapeHtml(row.deviceId || 'Unknown device') + ' - ' + DashboardShell.formatDateTime(row.timestamp) + '</div></div></div>';
+  }).join('');
+}
+function loadTimeline() {
+  var device = shell.getDevice();
+  var date = document.getElementById('dateInput').value || isoDate(new Date());
+  var url = device ? '/activity/timeline/' + encodeURIComponent(device) + '?date=' + encodeURIComponent(date) + '&limit=300' : '/activity/window?date=' + encodeURIComponent(date) + '&limit=300';
+  fetch(url).then(function(r) { return r.ok ? r.json() : []; }).then(function(data) { rows = Array.isArray(data) ? data : []; renderTimeline(); });
+}
+DashboardShell.connectStomp(['/topic/activity-window'], function(payload) {
+  if (payload.type === 'ACTIVE_WINDOW_CHANGED' && payload.data) {
+    rows.unshift(payload.data);
+    renderTimeline();
+  }
+});
+document.getElementById('dateInput').value = isoDate(new Date());
+document.getElementById('searchInput').addEventListener('input', renderTimeline);
+document.getElementById('dateInput').addEventListener('change', loadTimeline);
+window.addEventListener('devicechange', loadTimeline);
+window.addEventListener('shellrefresh', loadTimeline);
+loadTimeline();
+</script>
+</body>
+</html>

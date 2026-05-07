@@ -34,6 +34,10 @@ public class BatteryMonitor {
                 PowerSource battery = powerSources.get(0);
 
                 double batteryPercent = battery.getRemainingCapacityPercent();
+                if (batteryPercent <= 1.0) {
+                    batteryPercent = batteryPercent * 100.0;
+                }
+                batteryPercent = Math.max(0.0, Math.min(100.0, batteryPercent));
                 boolean isCharging = battery.isCharging();
 
                 // Send battery data to backend

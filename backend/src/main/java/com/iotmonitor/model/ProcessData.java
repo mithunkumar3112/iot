@@ -15,6 +15,7 @@ public class ProcessData {
     private String processName;
     private double cpuUsage;
     private double memoryUsage; // in MB
+    private int instanceCount; // Number of instances for grouped processes
     private LocalDateTime timestamp;
 
     // Constructors
@@ -25,6 +26,16 @@ public class ProcessData {
         this.processName = processName;
         this.cpuUsage = cpuUsage;
         this.memoryUsage = memoryUsage;
+        this.instanceCount = 1;
+        this.timestamp = LocalDateTime.now();
+    }
+
+    public ProcessData(String deviceId, String processName, double cpuUsage, double memoryUsage, int instanceCount) {
+        this.deviceId = deviceId;
+        this.processName = processName;
+        this.cpuUsage = cpuUsage;
+        this.memoryUsage = memoryUsage;
+        this.instanceCount = instanceCount;
         this.timestamp = LocalDateTime.now();
     }
 
@@ -43,6 +54,9 @@ public class ProcessData {
 
     public double getMemoryUsage() { return memoryUsage; }
     public void setMemoryUsage(double memoryUsage) { this.memoryUsage = memoryUsage; }
+
+    public int getInstanceCount() { return instanceCount; }
+    public void setInstanceCount(int instanceCount) { this.instanceCount = instanceCount; }
 
     public LocalDateTime getTimestamp() { return timestamp; }
     public void setTimestamp(LocalDateTime timestamp) { this.timestamp = timestamp; }

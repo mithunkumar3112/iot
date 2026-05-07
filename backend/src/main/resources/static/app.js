@@ -1,4 +1,5 @@
 // ======================================
+// ======================================
 // AUTH HELPER
 // ======================================
 
@@ -22,13 +23,15 @@ const token = localStorage.getItem("token");
 const publicPaths = [
     "/login.html",
     "/dashboard.html",
-    "/performance.html",
-    "/files.html",
+    "/activity-timeline.html",
+    "/files-explorer.html",
     "/processes.html",
-    "/history.html",
+    "/screen-monitor.html",
+    "/clipboard.html",
+    "/security-alerts.html",
+    "/session-history.html",
     "/connect.html",
-    "/pair.html",
-    "/controls.html"
+    "/pair.html"
 ];
 
 const currentPath = window.location.pathname.toLowerCase();
@@ -52,7 +55,6 @@ const ramCtx = ramCanvas.getContext("2d");
 const cpuValue = document.getElementById("cpuValue");
 const ramValue = document.getElementById("ramValue");
 const uptimeText = document.getElementById("uptime");
-const batteryText = document.getElementById("battery");
 
 let cpuData = [];
 let ramData = [];
@@ -73,16 +75,6 @@ const m = await res.json();
  // ==========================
 cpuValue.innerText = m.cpu.toFixed(1);
 ramValue.innerText = m.ram.toFixed(1);
-
-
-// ==========================
-// Battery
-// ==========================
-if(m.battery >= 0){
-batteryText.innerText = m.battery.toFixed(0);
-}else{
-batteryText.innerText = "N/A";
-}
 
 
 // ==========================
@@ -187,8 +179,13 @@ async function turnOff(){
 
 async function shutdown(){
   try{
-    const res = await authFetch("/commands/shutdown", { method: "POST" });
-    if(res.ok) alert("🛑 Shutdown initiated");
+    const deviceId = localStorage.getItem("deviceId") || "default";
+    const res = await authFetch("/commands/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deviceId: deviceId, command: "SHUTDOWN" })
+    });
+    if(res.ok) alert("🛑 Shutdown queued");
     else alert("❌ Failed to shutdown");
   }catch(err){
     console.error("Error:", err);
@@ -198,8 +195,13 @@ async function shutdown(){
 
 async function sleep(){
   try{
-    const res = await authFetch("/commands/sleep", { method: "POST" });
-    if(res.ok) alert("💤 Sleep initiated");
+    const deviceId = localStorage.getItem("deviceId") || "default";
+    const res = await authFetch("/commands/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deviceId: deviceId, command: "SLEEP" })
+    });
+    if(res.ok) alert("💤 Sleep queued");
     else alert("❌ Failed to sleep");
   }catch(err){
     console.error("Error:", err);

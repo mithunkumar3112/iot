@@ -1,6 +1,6 @@
 // Service Worker for Offline File Access
-const CACHE_NAME = 'iot-monitor-v1';
-const RUNTIME_CACHE = 'iot-runtime-cache';
+const CACHE_NAME = 'iot-monitor-v4';
+const RUNTIME_CACHE = 'iot-runtime-cache-v4';
 
 // Install event - cache essential files
 self.addEventListener('install', event => {
@@ -11,12 +11,16 @@ self.addEventListener('install', event => {
         '/index.html',
         '/login.html',
         '/dashboard.html',
-        '/files.html',
-        '/screen.html',
-        '/performance.html',
-        '/controls.html',
-        '/history.html',
+        '/activity-timeline.html',
+        '/files-explorer.html',
+        '/processes.html',
+        '/screen-monitor.html',
+        '/clipboard.html',
+        '/security-alerts.html',
+        '/session-history.html',
         '/pair.html',
+        '/dashboard-shell.css',
+        '/dashboard-shell.js',
         '/style.css',
         '/app.js'
       ]).catch(err => console.log('Cache failed:', err));
@@ -78,7 +82,29 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // For static files - cache first, then network
+  // HTML pages must be network first so UI fixes are visible immediately.
+  if (request.mode === 'navigate' || url.pathname.endsWith('.html')) {
+    event.respondWith(
+      fetch(request)
+        .then(response => {
+          if (!response || response.status !== 200) {
+            return caches.match(request);
+          }
+          const clonedResponse = response.clone();
+          caches.open(CACHE_NAME).then(cache => {
+            cache.put(request, clonedResponse);
+          });
+          return response;
+        })
+        .catch(() => caches.match(request) || new Response('Offline - No cached version available', {
+          status: 503,
+          statusText: 'Service Unavailable'
+        }))
+    );
+    return;
+  }
+
+  // For other static files - cache first, then network
   event.respondWith(
     caches.match(request).then(cachedResponse => {
       if (cachedResponse) {

@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
  * already permits access to "/files/**", so the controller is responsible
  * for validating paths and handling I/O problems gracefully.
  */
-@CrossOrigin(origins = "*")
+@CrossOrigin(origins = "*", allowedHeaders = "*")
 @RestController
 @RequestMapping("/files")
 public class FileController {
@@ -44,18 +44,30 @@ public class FileController {
     }
 
     private Path resolveSafe(String filePath) throws IOException {
-        // Try to find the file in any of the configured paths
+        if (filePath == null || filePath.isBlank()) {
+            throw new IOException("Invalid file path");
+        }
+
+        filePath = java.net.URLDecoder.decode(filePath, "UTF-8");
+        filePath = filePath.replace("\\", "/");
+
         for (Path root : getRootPaths()) {
             try {
-                Path file = root.resolve(filePath).normalize();
-                if (file.startsWith(root) && Files.exists(file)) {
-                    return file;
+                Path candidate;
+                if (Paths.get(filePath).isAbsolute()) {
+                    candidate = Paths.get(filePath).normalize();
+                } else {
+                    candidate = root.resolve(filePath).normalize();
+                }
+
+                if (candidate.startsWith(root) && Files.exists(candidate)) {
+                    return candidate;
                 }
             } catch (Exception e) {
-                // Try next path
                 continue;
             }
         }
+
         throw new IOException("File not found in any configured path: " + filePath);
     }
 

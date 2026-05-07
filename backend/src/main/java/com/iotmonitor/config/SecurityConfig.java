@@ -49,20 +49,20 @@ public class SecurityConfig {
                     "/",
                     "/login.html",
                     "/dashboard.html",
-                    "/new-dashboard.html",
-                    "/performance.html",
-                    "/screen.html",
-                    "/history.html",
-                    "/controls.html",
-                    "/files.html",
+                    "/screen-monitor.html",
+                    "/clipboard.html",
+                    "/activity-timeline.html",
+                    "/security-alerts.html",
+                    "/session-history.html",
+                    "/files-explorer.html",
                     "/processes.html",
                     "/pair.html",
                     "/connect.html", 
                     "/style.css",
+                    "/dashboard-shell.css",
+                    "/dashboard-shell.js",
                     "/app.js",
                     "/navigation.js",
-                    "/processes.js",
-                    "/dashboard.js",
                     "/manifest.json",
                     "/service-worker.js",
                     "/auth/**",
@@ -78,12 +78,23 @@ public class SecurityConfig {
                     "/api/files/**",
                     "/api/processes/**",
                     "/api/alerts/**",
+                    "/security/**",
+                    "/sessions",
+                    "/sessions/**",
                     "/metrics/**",
                     "/processes",
                     "/processes/**",
                     "/apps",
                     "/apps/**",
-                    "/apps/activity"
+                    "/apps/activity",
+                    "/system/battery",
+                    "/system/battery/**",
+                    "/clipboard",
+                    "/clipboard/**",
+                    "/activity",
+                    "/activity/**",
+                    "/ws",
+                    "/ws/**"
             ).permitAll()
 
             // Allow file viewing/downloading
@@ -91,12 +102,13 @@ public class SecurityConfig {
                     "/files/view/**",
                     "/files/read/**",
                     "/files/download/**",
-                    "/files/list"
+                    "/files/list",
+                    "/files/device/**",
+                    "/files/supabase"
             ).permitAll()
 
             // Secure API endpoints
             .requestMatchers(
-                    "/commands/send",
                     "/commands/history",
                     "/commands/on",
                     "/commands/off",
@@ -109,6 +121,7 @@ public class SecurityConfig {
             // laptop agent does not currently carry a JWT token.
             .requestMatchers(
                     "/commands/{deviceId}",
+                    "/commands/send",
                     "/commands/result",
                     "/commands/latest"
             ).permitAll()

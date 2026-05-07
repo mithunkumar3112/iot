@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Session History</title>
+  <link rel="stylesheet" href="dashboard-shell.css">
+</head>
+<body>
+<template id="pageTemplate">
+  <div class="grid">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Login Sessions</div>
+          <div class="muted" id="sessionSummary">Waiting for session data</div>
+        </div>
+        <span class="badge badge-info" id="activeCount">0 active</span>
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Device</th>
+              <th>User</th>
+              <th>Login Time</th>
+              <th>Logout Time</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="sessionRows">
+            <tr><td colspan="5"><div class="empty-state">Loading sessions...</div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</template>
+<script src="dashboard-shell.js"></script>
+<script>
+var content = document.getElementById('pageTemplate').content.cloneNode(true);
+var shell = DashboardShell.init({
+  active: 'sessions',
+  title: 'Session History',
+  subtitle: 'Login, logout, failed attempts, and active device sessions.',
+  content: content
+});
+var sessions = [];
+var currentDevice = shell.getDevice();
+
+function badgeClass(status) {
+  status = String(status || 'ACTIVE').toLowerCase();
+  if (status === 'active') return 'badge-active';
+  if (status === 'failed') return 'badge-failed';
+  return 'badge-closed';
+}
+
+function renderSessions() {
+  currentDevice = shell.getDevice();
+  var rows = sessions.filter(function(row) { return !currentDevice || row.deviceId === currentDevice; });
+  var tbody = document.getElementById('sessionRows');
+  document.getElementById('sessionSummary').textContent = rows.length + ' sessions shown';
+  document.getElementById('activeCount').textContent = rows.filter(function(row) { return row.status === 'ACTIVE'; }).length + ' active';
+  shell.setDevices(sessions.map(function(row) { return row.deviceId; }));
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state">No sessions for this filter.</div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(function(row) {
+    return '<tr><td><div class="row-title">' + DashboardShell.escapeHtml(row.deviceId || 'Unknown') +
+      '</div></td><td>' + DashboardShell.escapeHtml(row.username || 'Unknown') +
+      '</td><td>' + DashboardShell.formatDateTime(row.loginTime) +
+      '</td><td>' + DashboardShell.formatDateTime(row.logoutTime) +
+      '</td><td><span class="badge ' + badgeClass(row.status) + '">' + DashboardShell.escapeHtml(row.status || 'ACTIVE') + '</span></td></tr>';
+  }).join('');
+}
+
+function loadSessions() {
+  var device = shell.getDevice();
+  var url = device ? '/sessions/' + encodeURIComponent(device) : '/sessions';
+  fetch(url)
+    .then(function(r) { return r.ok ? r.json() : []; })
+    .then(function(rows) {
+      sessions = Array.isArray(rows) ? rows : [];
+      renderSessions();
+    })
+    .catch(function() {
+      document.getElementById('sessionRows').innerHTML = '<tr><td colspan="5"><div class="empty-state">Unable to load session history.</div></td></tr>';
+    });
+}
+
+DashboardShell.connectStomp(['/topic/session-updates'], function(payload) {
+  var row = payload.data || payload;
+  if (!row || !row.deviceId) return;
+  sessions.unshift(row);
+  DashboardShell.toast('Session update', (row.username || 'User') + ' ' + (row.status || 'updated'), row.status === 'FAILED' ? 'danger' : 'success');
+  renderSessions();
+});
+window.addEventListener('devicechange', loadSessions);
+window.addEventListener('shellrefresh', loadSessions);
+loadSessions();
+</script>
+</body>
+</html>

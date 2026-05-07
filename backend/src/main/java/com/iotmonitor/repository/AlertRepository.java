@@ -9,4 +9,8 @@ public interface AlertRepository extends JpaRepository<Alert, Long> {
     List<Alert> findByDeviceIdOrderByTimestampDesc(String deviceId);
 
     List<Alert> findByAcknowledgedFalseOrderByTimestampDesc();
+
+    List<Alert> findTop100ByOrderByTimestampDesc();
+
+    List<Alert> findTop100ByDeviceIdOrderByTimestampDesc(String deviceId);
 }

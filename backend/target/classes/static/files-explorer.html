@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>File Explorer</title>
+  <link rel="stylesheet" href="dashboard-shell.css">
+</head>
+<body>
+<template id="pageTemplate">
+  <div class="grid cols-3" style="margin-bottom:18px;">
+    <div class="card card-pad"><div class="metric-label">Unique files</div><div class="metric-value" id="fileCount">0</div></div>
+    <div class="card card-pad"><div class="metric-label">Total size</div><div class="metric-value" id="fileSize">0 MB</div></div>
+    <div class="card card-pad"><div class="metric-label">Status</div><div class="metric-value" id="fileStatus">Ready</div></div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <div><div class="card-title">Files</div><div class="muted">Duplicate file paths are removed automatically.</div></div>
+      <input class="input" id="searchInput" placeholder="Search files">
+    </div>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Name</th><th>Size</th><th>Modified</th><th>Actions</th></tr></thead>
+        <tbody id="fileRows"><tr><td colspan="4"><div class="empty-state">Loading files...</div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</template>
+<script src="dashboard-shell.js"></script>
+<script>
+var content = document.getElementById('pageTemplate').content.cloneNode(true);
+DashboardShell.init({ active: 'files', title: 'File Explorer', subtitle: 'Browse, preview, and download synced laptop files.', content: content });
+var allFiles = [];
+
+function formatBytes(bytes) {
+  bytes = Number(bytes || 0);
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+  return (bytes / 1024 / 1024 / 1024).toFixed(1) + ' GB';
+}
+function dedupe(files) {
+  var unique = {};
+  (Array.isArray(files) ? files : []).forEach(function(file) {
+    if (!file || file.isDirectory) return;
+    var key = String(file.path || file.fullPath || file.name || '').toLowerCase();
+    var existing = unique[key];
+    if (!existing || Number(file.lastModified || 0) >= Number(existing.lastModified || 0)) unique[key] = file;
+  });
+  return Object.values(unique).sort(function(a, b) { return Number(b.lastModified || 0) - Number(a.lastModified || 0); });
+}
+function renderFiles() {
+  var query = String(document.getElementById('searchInput').value || '').toLowerCase();
+  var rows = dedupe(allFiles).filter(function(file) {
+    return !query || String(file.name || file.path || '').toLowerCase().indexOf(query) >= 0;
+  });
+  var total = rows.reduce(function(sum, file) { return sum + Number(file.size || 0); }, 0);
+  document.getElementById('fileCount').textContent = rows.length;
+  document.getElementById('fileSize').textContent = formatBytes(total);
+  if (!rows.length) {
+    document.getElementById('fileRows').innerHTML = '<tr><td colspan="4"><div class="empty-state">No files found.</div></td></tr>';
+    return;
+  }
+  document.getElementById('fileRows').innerHTML = rows.map(function(file) {
+    var path = file.path || file.fullPath || file.name;
+    var encoded = encodeURIComponent(path);
+    return '<tr><td><div class="row-title">' + DashboardShell.escapeHtml(file.name || path) +
+      '</div><div class="row-sub">' + DashboardShell.escapeHtml(path) +
+      '</div></td><td>' + formatBytes(file.size) +
+      '</td><td>' + (file.lastModified ? DashboardShell.formatDateTime(Number(file.lastModified)) : '--') +
+      '</td><td><div style="display:flex;gap:8px;flex-wrap:wrap;"><a class="btn secondary" target="_blank" href="/files/read/' + encoded +
+      '">Preview</a><a class="btn success" href="/files/download/' + encoded + '">Download</a></div></td></tr>';
+  }).join('');
+}
+function loadFiles() {
+  document.getElementById('fileStatus').textContent = 'Syncing';
+  fetch('/files/list', { cache: 'no-store' })
+    .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(files) {
+      allFiles = Array.isArray(files) ? files : [];
+      document.getElementById('fileStatus').textContent = 'Ready';
+      renderFiles();
+    })
+    .catch(function(err) {
+      document.getElementById('fileStatus').textContent = 'Error';
+      document.getElementById('fileRows').innerHTML = '<tr><td colspan="4"><div class="empty-state">Unable to load files: ' + DashboardShell.escapeHtml(err.message) + '</div></td></tr>';
+    });
+}
+document.getElementById('searchInput').addEventListener('input', renderFiles);
+window.addEventListener('shellrefresh', loadFiles);
+loadFiles();
+</script>
+</body>
+</html>

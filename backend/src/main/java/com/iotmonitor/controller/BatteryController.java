@@ -5,7 +5,9 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -19,15 +21,7 @@ public class BatteryController {
     // Store latest battery data per device
     private static final Map<String, BatteryData> latestBatteryData = new ConcurrentHashMap<>();
 
-    /**
-     * Receive battery data from agent
-     * POST /system/battery
-     * {
-     *   "deviceId": "Laptop-1",
-     *   "battery": 65,
-     *   "charging": true
-     * }
-     */
+
     @PostMapping("/battery")
     public Map<String, Object> receiveBatteryData(@RequestBody Map<String, Object> payload) {
         System.out.println("\n=== 🔋 BATTERY DATA RECEIVED ===");
@@ -69,6 +63,7 @@ public class BatteryController {
         try {
             Map<String, Object> wsEvent = new HashMap<>();
             wsEvent.put("type", "BATTERY_UPDATE");
+            wsEvent.put("event", "battery_update");
             wsEvent.put("data", Map.of(
                 "deviceId", deviceId,
                 "battery", battery,
@@ -84,6 +79,15 @@ public class BatteryController {
         response.put("success", true);
         response.put("message", "Battery data recorded successfully");
         return response;
+    }
+
+    /**
+     * Get devices that have reported battery data
+     * GET /system/battery/devices
+     */
+    @GetMapping("/battery/devices")
+    public List<String> getBatteryDevices() {
+        return new ArrayList<>(latestBatteryData.keySet());
     }
 
     /**

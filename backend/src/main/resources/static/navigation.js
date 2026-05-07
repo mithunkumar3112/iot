@@ -120,12 +120,13 @@ function setupStickyBackButton() {
  */
 function setupNavigationSidebar() {
     const navItems = [
-        { label: '📊 Dashboard', href: 'dashboard.html' },
-        { label: '📈 Performance', href: 'performance.html' },
-        { label: '📺 Screen', href: 'screen.html' },
-        { label: '📜 History', href: 'history.html' },
-        { label: '🎛️ Controls', href: 'controls.html' },
-        { label: '📁 Files', href: 'files.html' }
+        { label: 'Dashboard', href: 'dashboard.html' },
+        { label: 'Screen Monitoring', href: 'screen-monitor.html' },
+        { label: 'File Explorer', href: 'files-explorer.html' },
+        { label: 'Processes', href: 'processes.html' },
+        { label: 'Activity Timeline', href: 'activity-timeline.html' },
+        { label: 'Security Alerts', href: 'security-alerts.html' },
+        { label: 'Session History', href: 'session-history.html' }
     ];
 
     // Highlight current page

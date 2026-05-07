@@ -56,3 +56,64 @@ CREATE TABLE commands (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE
 );
+
+CREATE TABLE usage_analytics (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    device_id VARCHAR(100) NOT NULL,
+    app_name VARCHAR(255) NOT NULL,
+    total_usage BIGINT NOT NULL,
+    usage_date DATE NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_usage_device_app_date (device_id, app_name, usage_date),
+    INDEX idx_usage_device_date (device_id, usage_date),
+    INDEX idx_usage_date (usage_date)
+);
+
+CREATE TABLE active_window_activity (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    device_id VARCHAR(100) NOT NULL,
+    active_window VARCHAR(255) NOT NULL,
+    timestamp TIMESTAMP NOT NULL,
+    INDEX idx_active_window_device_time (device_id, timestamp),
+    INDEX idx_active_window_time (timestamp)
+);
+
+CREATE TABLE usb_activity (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    device_id VARCHAR(120) NOT NULL,
+    device_name VARCHAR(180) NOT NULL,
+    connection_type VARCHAR(60) NOT NULL,
+    status VARCHAR(30) NOT NULL,
+    screenshot_url VARCHAR(500),
+    timestamp TIMESTAMP NOT NULL,
+    INDEX idx_usb_device_time (device_id, timestamp),
+    INDEX idx_usb_time (timestamp)
+);
+
+CREATE TABLE login_sessions (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    device_id VARCHAR(120) NOT NULL,
+    username VARCHAR(160) NOT NULL,
+    login_time TIMESTAMP NOT NULL,
+    logout_time TIMESTAMP NULL,
+    status VARCHAR(40) NOT NULL,
+    INDEX idx_session_device_time (device_id, login_time),
+    INDEX idx_session_status (status)
+);
+
+CREATE TABLE security_screenshots (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    device_id VARCHAR(120) NOT NULL,
+    alert_id BIGINT NULL,
+    usb_activity_id BIGINT NULL,
+    event_type VARCHAR(60) NOT NULL,
+    file_path VARCHAR(500) NOT NULL,
+    url VARCHAR(500) NOT NULL,
+    file_size BIGINT NOT NULL,
+    timestamp TIMESTAMP NOT NULL,
+    INDEX idx_security_screenshot_device_time (device_id, timestamp)
+);
+
+-- Existing JPA-managed alerts table is extended by Hibernate ddl-auto=update.
+-- For manual databases, add:
+-- ALTER TABLE alerts ADD COLUMN process_name VARCHAR(160);

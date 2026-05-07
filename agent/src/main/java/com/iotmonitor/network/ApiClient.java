@@ -11,7 +11,6 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 public class ApiClient {
 
@@ -132,9 +131,68 @@ public class ApiClient {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> sendSecurityAlert(Map<String, Object> payload) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            payload.putIfAbsent("deviceId", deviceId);
+            HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(payload, headers);
+            ResponseEntity<Map> response = restTemplate.postForEntity(backendUrl + "/security/alerts", requestEntity, Map.class);
+            return response.getBody();
+        } catch (Exception e) {
+            System.err.println("Error sending security alert: " + e.getMessage());
+            return null;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> sendUsbActivity(Map<String, Object> payload) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            payload.putIfAbsent("deviceId", deviceId);
+            HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(payload, headers);
+            ResponseEntity<Map> response = restTemplate.postForEntity(backendUrl + "/security/usb", requestEntity, Map.class);
+            return response.getBody();
+        } catch (Exception e) {
+            System.err.println("Error sending USB activity: " + e.getMessage());
+            return null;
+        }
+    }
+
+    public void sendSecurityScreenshot(byte[] imageBytes, Long alertId, Long usbActivityId, String eventType) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            StringBuilder url = new StringBuilder(backendUrl)
+                    .append("/security/screenshot?deviceId=")
+                    .append(URLEncoder.encode(deviceId, StandardCharsets.UTF_8))
+                    .append("&eventType=")
+                    .append(URLEncoder.encode(eventType == null ? "security" : eventType, StandardCharsets.UTF_8));
+            if (alertId != null) url.append("&alertId=").append(alertId);
+            if (usbActivityId != null) url.append("&usbActivityId=").append(usbActivityId);
+            restTemplate.postForEntity(url.toString(), new HttpEntity<>(imageBytes, headers), String.class);
+        } catch (Exception e) {
+            System.err.println("Error sending security screenshot: " + e.getMessage());
+        }
+    }
+
+    public void sendSessionUpdate(Map<String, Object> payload) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            payload.putIfAbsent("deviceId", deviceId);
+            restTemplate.postForEntity(backendUrl + "/sessions", new HttpEntity<>(payload, headers), String.class);
+        } catch (Exception e) {
+            System.err.println("Error sending session update: " + e.getMessage());
+        }
+    }
+
     public String fetchPendingCommand(String deviceId) {
         try {
-            return restTemplate.getForObject(backendUrl + "/commands/latest", String.class);
+            String encodedDeviceId = URLEncoder.encode(deviceId, StandardCharsets.UTF_8);
+            return restTemplate.getForObject(backendUrl + "/commands/" + encodedDeviceId, String.class);
         } catch (Exception e) {
             System.err.println("⚠️ Error polling command: " + e.getMessage());
             return null;
@@ -203,4 +261,41 @@ public class ApiClient {
             System.err.println("⚠️ Error sending battery data: " + e.getMessage());
         }
     }
+
+    public void sendActiveWindow(Map<String, Object> activeWindowPayload) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(activeWindowPayload, headers);
+            ResponseEntity<String> response = restTemplate.postForEntity(backendUrl + "/activity/window", requestEntity, String.class);
+
+            if (response.getStatusCode().is2xxSuccessful()) {
+                System.out.println("✅ Active window sent successfully");
+            } else {
+                System.err.println("❌ Failed to send active window (HTTP " + response.getStatusCode().value() + ")");
+            }
+        } catch (Exception e) {
+            System.err.println("⚠️ Error sending active window: " + e.getMessage());
+        }
+    }
+
+    public void sendClipboardUpdate(Map<String, Object> clipboardPayload) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(clipboardPayload, headers);
+            ResponseEntity<String> response = restTemplate.postForEntity(backendUrl + "/clipboard/update", requestEntity, String.class);
+
+            if (response.getStatusCode().is2xxSuccessful()) {
+                System.out.println("✅ Clipboard update sent successfully");
+            } else {
+                System.err.println("❌ Failed to send clipboard update (HTTP " + response.getStatusCode().value() + ")");
+            }
+        } catch (Exception e) {
+            System.err.println("⚠️ Error sending clipboard update: " + e.getMessage());
+        }
+    }
+
 }

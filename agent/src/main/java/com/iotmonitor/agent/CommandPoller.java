@@ -63,6 +63,7 @@ public class CommandPoller implements Runnable {
                 case "DELETE_FILE" -> executeDeleteFile(command);
                 case "SHUTDOWN" -> executeShutdown(command);
                 case "SLEEP" -> executeSleep(command);
+                case "LOCK" -> executeLock(command);
                 case "RESTART" -> executeRestart(command);
                 case "RESTART_AGENT" -> executeRestartAgent(command);
                 default -> {
@@ -99,22 +100,21 @@ public class CommandPoller implements Runnable {
     }
 
     private void executeShutdown(String command) {
-        apiClient.postCommandResult(deviceId, command, "SUCCESS");
         try {
             String os = System.getProperty("os.name", "").toLowerCase();
             if (os.contains("win")) {
-                Runtime.getRuntime().exec("shutdown /s /t 0");
+                Runtime.getRuntime().exec("shutdown -s -t 0");
             } else {
                 Runtime.getRuntime().exec("shutdown -h now");
             }
+            apiClient.postCommandResult(deviceId, command, "SUCCESS");
         } catch (Exception e) {
             System.err.println("⚠️ Shutdown command failed: " + e.getMessage());
+            apiClient.postCommandResult(deviceId, command, "FAILED");
         }
-        System.exit(0);
     }
 
     private void executeSleep(String command) {
-        apiClient.postCommandResult(deviceId, command, "SUCCESS");
         try {
             String os = System.getProperty("os.name", "").toLowerCase();
             if (os.contains("win")) {
@@ -122,13 +122,29 @@ public class CommandPoller implements Runnable {
             } else {
                 Runtime.getRuntime().exec("systemctl suspend");
             }
+            apiClient.postCommandResult(deviceId, command, "SUCCESS");
         } catch (Exception e) {
             System.err.println("⚠️ Sleep command failed: " + e.getMessage());
+            apiClient.postCommandResult(deviceId, command, "FAILED");
+        }
+    }
+
+    private void executeLock(String command) {
+        try {
+            String os = System.getProperty("os.name", "").toLowerCase();
+            if (os.contains("win")) {
+                Runtime.getRuntime().exec("rundll32.exe user32.dll,LockWorkStation");
+            } else {
+                Runtime.getRuntime().exec("loginctl lock-session");
+            }
+            apiClient.postCommandResult(deviceId, command, "SUCCESS");
+        } catch (Exception e) {
+            System.err.println("⚠️ Lock command failed: " + e.getMessage());
+            apiClient.postCommandResult(deviceId, command, "FAILED");
         }
     }
 
     private void executeRestart(String command) {
-        apiClient.postCommandResult(deviceId, command, "SUCCESS");
         try {
             String os = System.getProperty("os.name", "").toLowerCase();
             if (os.contains("win")) {
@@ -136,8 +152,10 @@ public class CommandPoller implements Runnable {
             } else {
                 Runtime.getRuntime().exec("reboot");
             }
+            apiClient.postCommandResult(deviceId, command, "SUCCESS");
         } catch (Exception e) {
             System.err.println("⚠️ Restart command failed: " + e.getMessage());
+            apiClient.postCommandResult(deviceId, command, "FAILED");
         }
     }
 

@@ -1,239 +1,112 @@
-
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#0ea5e9">
-    <meta name="description" content="IoT Monitor - Access PC from phone, works OFFLINE">
-    <link rel="manifest" href="manifest.json">
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%230ea5e9' width='100' height='100'/><text x='50' y='70' font-size='60' fill='white' text-anchor='middle' font-weight='bold'>IOT</text></svg>">
-    <title>IoT Monitor Dashboard</title>
-    <link rel="stylesheet" href="style.css">
-    <style>
-        .install-banner {
-            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
-            color: white;
-            padding: 15px;
-            border-radius: 4px;
-            margin-bottom: 20px;
-            display: none;
-        }
-        .install-banner button {
-            background: white;
-            color: #0ea5e9;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 3px;
-            cursor: pointer;
-            font-weight: bold;
-            margin-left: 10px;
-        }
-        .battery-card {
-            cursor: pointer;
-            position: relative;
-        }
-        .battery-status {
-            font-size: 12px;
-            color: #666;
-            margin-top: 4px;
-        }
-        .battery-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-        }
-        .battery-modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.8);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-        }
-        .battery-modal-content {
-            background: white;
-            padding: 30px;
-            border-radius: 8px;
-            max-width: 400px;
-            width: 90%;
-            text-align: center;
-        }
-        .battery-level {
-            font-size: 48px;
-            font-weight: bold;
-            margin: 20px 0;
-        }
-        .battery-green { color: #10b981; }
-        .battery-yellow { color: #f59e0b; }
-        .battery-red { color: #ef4444; }
-        .charging-indicator {
-            color: #10b981;
-            font-weight: bold;
-        }
-    </style>
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard</title>
+  <link rel="stylesheet" href="dashboard-shell.css">
 </head>
-
-<body class="dark">
-
-<div class="install-banner" id="installBanner">
-    📲 <strong>Install App for Offline Access!</strong> Click below to save to home screen.
-    <button onclick="installApp()">Install</button>
-</div>
-
-<h1>📊 IoT Monitoring Dashboard</h1>
-
-<div class="menu">
-    <a href="performance.html" class="menu-card">
-        <div class="card-icon">📈</div>
-        <div class="card-title">System Performance</div>
-    </a>
-    <a href="screen.html" class="menu-card">
-        <div class="card-icon">📺</div>
-        <div class="card-title">Screen Monitoring</div>
-    </a>
-    <a href="history.html" class="menu-card">
-        <div class="card-icon">📜</div>
-        <div class="card-title">History</div>
-    </a>
-    <a href="controls.html" class="menu-card">
-        <div class="card-icon">🎛️</div>
-        <div class="card-title">Controls</div>
-    </a>
-    <a href="files.html" class="menu-card">
-        <div class="card-icon">📁</div>
-        <div class="card-title">File Explorer</div>
-    </a>
-    <div class="menu-card battery-card" onclick="showBatteryModal()">
-        <div class="card-icon" id="batteryIcon">🔋</div>
-        <div class="card-title">Battery</div>
-        <div class="battery-status" id="batteryStatus">Loading...</div>
+<body>
+<template id="pageTemplate">
+  <div id="overviewView">
+    <div class="grid cols-4" style="margin-bottom:18px;">
+      <div class="card card-pad"><div class="metric-label">CPU usage</div><div class="metric-value" id="cpuVal">--%</div><div class="bar"><span id="cpuBar" style="width:0%"></span></div></div>
+      <div class="card card-pad"><div class="metric-label">RAM usage</div><div class="metric-value" id="ramVal">--%</div><div class="bar yellow"><span id="ramBar" style="width:0%"></span></div></div>
+      <div class="card card-pad"><div class="metric-label">Battery</div><div class="metric-value" id="batteryVal">--%</div><div class="bar green"><span id="batteryBar" style="width:0%"></span></div></div>
+      <div class="card card-pad"><div class="metric-label">Uptime</div><div class="metric-value" id="uptimeVal">--</div></div>
     </div>
-</div>
-<button onclick="logout()" class="logout-btn">🚪 Logout</button>
-
-<div class="battery-modal" id="batteryModal">
-    <div class="battery-modal-content">
-        <h2>🔋 Battery Status</h2>
-        <div class="battery-level" id="batteryLevel">Loading...</div>
-        <div id="chargingStatus"></div>
-        <button onclick="closeBatteryModal()" style="margin-top: 20px; padding: 10px 20px; background: #0ea5e9; color: white; border: none; border-radius: 4px; cursor: pointer;">Close</button>
+    <div class="grid cols-2">
+      <div class="card">
+        <div class="card-head"><div><div class="card-title">Top User Apps</div><div class="muted">Filtered live process feed</div></div><a class="btn secondary" href="processes.html">View All</a></div>
+        <div class="table-wrap"><table class="table"><thead><tr><th>App</th><th>CPU</th><th>Status</th></tr></thead><tbody id="processRows"><tr><td colspan="3"><div class="empty-state">Waiting for processes...</div></td></tr></tbody></table></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div><div class="card-title">Recent Alerts</div><div class="muted">Security and monitoring alerts</div></div><a class="btn secondary" href="security-alerts.html">Security</a></div>
+        <div class="table-wrap"><table class="table"><thead><tr><th>Alert</th><th>Time</th><th>Level</th></tr></thead><tbody id="alertRows"><tr><td colspan="3"><div class="empty-state">No alerts yet.</div></td></tr></tbody></table></div>
+      </div>
     </div>
-</div>
-
-<script src="navigation.js"></script>
+  </div>
+  <div id="commandsView" style="display:none;">
+    <div class="card">
+      <div class="card-head"><div><div class="card-title">Device Commands</div><div class="muted">Commands are queued for the selected device.</div></div></div>
+      <div class="card-pad">
+        <div class="grid cols-4">
+          <button class="btn danger" data-command="SHUTDOWN">Shutdown</button>
+          <button class="btn secondary" data-command="RESTART">Restart</button>
+          <button class="btn secondary" data-command="SLEEP">Sleep</button>
+          <button class="btn secondary" data-command="LOCK">Lock</button>
+        </div>
+        <div class="empty-state" id="commandStatus" style="margin-top:18px;">No command sent this session.</div>
+      </div>
+    </div>
+  </div>
+</template>
+<script src="dashboard-shell.js"></script>
 <script>
-    // ==========================================
-    // REGISTER SERVICE WORKER
-    // ==========================================
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('service-worker.js')
-                .then(reg => console.log('✅ Service Worker registered'))
-                .catch(err => console.log('⚠️ SW failed:', err));
-        });
-    }
-
-    // ==========================================
-    // PWA INSTALL PROMPT
-    // ==========================================
-    let deferredPrompt;
-    window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault();
-        deferredPrompt = e;
-        document.getElementById('installBanner').style.display = 'block';
-    });
-
-    function installApp() {
-        if (deferredPrompt) {
-            deferredPrompt.prompt();
-            deferredPrompt.userChoice.then((choiceResult) => {
-                if (choiceResult.outcome === 'accepted') {
-                    console.log('✅ App installed!');
-                    document.getElementById('installBanner').style.display = 'none';
-                }
-                deferredPrompt = null;
-            });
-        }
-    }
-
-    // ==========================================
-    // BATTERY MONITORING
-    // ==========================================
-    function showBatteryModal() {
-        document.getElementById('batteryModal').style.display = 'flex';
-        loadBatteryData();
-    }
-
-    function closeBatteryModal() {
-        document.getElementById('batteryModal').style.display = 'none';
-    }
-
-    async function loadBatteryData() {
-        try {
-            const deviceId = localStorage.getItem('deviceId') || 'default';
-            const response = await fetch(`/system/battery/${deviceId}`);
-            const data = await response.json();
-            
-            if (data.found) {
-                const batteryLevel = Math.round(data.battery);
-                const isCharging = data.charging;
-                
-                document.getElementById('batteryLevel').textContent = batteryLevel + '%';
-                document.getElementById('batteryLevel').className = 'battery-level ' + getBatteryColorClass(batteryLevel);
-                
-                if (isCharging) {
-                    document.getElementById('chargingStatus').innerHTML = '<span class="charging-indicator">⚡ Charging</span>';
-                } else {
-                    document.getElementById('chargingStatus').textContent = 'Not Charging';
-                }
-                
-                // Update dashboard card
-                document.getElementById('batteryStatus').textContent = batteryLevel + '% ' + (isCharging ? '⚡' : '');
-                document.getElementById('batteryIcon').textContent = getBatteryIcon(batteryLevel, isCharging);
-            } else {
-                document.getElementById('batteryLevel').textContent = 'N/A';
-                document.getElementById('chargingStatus').textContent = 'No battery data available';
-            }
-        } catch (error) {
-            console.error('Error loading battery data:', error);
-            document.getElementById('batteryLevel').textContent = 'Error';
-            document.getElementById('chargingStatus').textContent = 'Failed to load battery data';
-        }
-    }
-
-    function getBatteryColorClass(level) {
-        if (level >= 50) return 'battery-green';
-        if (level >= 20) return 'battery-yellow';
-        return 'battery-red';
-    }
-
-    function getBatteryIcon(level, charging) {
-        if (charging) return '🔋⚡';
-        if (level >= 75) return '🔋';
-        if (level >= 50) return '🔋';
-        if (level >= 25) return '🪫';
-        return '🪫';
-    }
-
-    // Load battery data on page load
-    loadBatteryData();
-    setInterval(loadBatteryData, 5000); // Update every 5 seconds
-
-    // ==========================================
-    // LOGOUT
-    // ==========================================
-    function logout() {
-        if (confirm('Logout?')) {
-            localStorage.removeItem('token');
-            window.location = 'login.html';
-        }
-    }
+var content = document.getElementById('pageTemplate').content.cloneNode(true);
+var shell = DashboardShell.init({
+  active: location.hash === '#commands' ? 'commands' : 'dashboard',
+  title: 'Dashboard',
+  subtitle: 'Live laptop monitoring and command center.',
+  content: content,
+  actions: '<button class="btn secondary" id="switchCommandsBtn">Commands</button>'
+});
+var alerts = [];
+var processes = [];
+function pct(value) { return Math.min(100, Math.max(0, Math.round(Number(value || 0)))); }
+function renderMetrics(data) {
+  var cpu = pct(data.cpu), ram = pct(data.ram), battery = data.battery == null ? null : pct(data.battery);
+  document.getElementById('cpuVal').textContent = cpu + '%'; document.getElementById('cpuBar').style.width = cpu + '%';
+  document.getElementById('ramVal').textContent = ram + '%'; document.getElementById('ramBar').style.width = ram + '%';
+  document.getElementById('batteryVal').textContent = battery == null ? '--%' : battery + '%'; document.getElementById('batteryBar').style.width = (battery || 0) + '%';
+  var up = Number(data.uptime || 0); document.getElementById('uptimeVal').textContent = up ? Math.floor(up / 3600) + 'h ' + Math.floor((up % 3600) / 60) + 'm' : '--';
+  if (data.deviceId) { DashboardShell.setDevice(data.deviceId); shell.setStatus('Live', true); }
+}
+function renderProcesses() {
+  var rows = processes.slice(0, 8);
+  document.getElementById('processRows').innerHTML = rows.length ? rows.map(function(p) {
+    var cpu = pct(p.cpu || p.cpuUsage);
+    return '<tr><td><div class="row-title">' + DashboardShell.escapeHtml(p.name || p.processName || 'Unknown') + '</div></td><td>' + cpu + '%</td><td><span class="badge badge-running">OPEN</span></td></tr>';
+  }).join('') : '<tr><td colspan="3"><div class="empty-state">Waiting for processes...</div></td></tr>';
+}
+function renderAlerts() {
+  document.getElementById('alertRows').innerHTML = alerts.length ? alerts.slice(0, 8).map(function(a) {
+    return '<tr><td><div class="row-title">' + DashboardShell.escapeHtml(a.message || a.type || 'Alert') +
+      '</div><div class="row-sub">' + DashboardShell.escapeHtml(a.deviceId || '') + '</div></td><td>' + DashboardShell.formatTime(a.timestamp) +
+      '</td><td><span class="badge ' + ((a.severity === 'HIGH' || a.severity === 'CRITICAL') ? 'badge-danger' : 'badge-warning') + '">' + DashboardShell.escapeHtml(a.severity || 'WARN') + '</span></td></tr>';
+  }).join('') : '<tr><td colspan="3"><div class="empty-state">No alerts yet.</div></td></tr>';
+}
+function loadMetrics() {
+  fetch('/metrics/latest').then(function(r){ return r.ok ? r.json() : {}; }).then(renderMetrics).catch(function(){ shell.setStatus('Waiting', false); });
+  var device = shell.getDevice();
+  if (device) fetch('/processes/latest?deviceId=' + encodeURIComponent(device) + '&limit=20').then(function(r){ return r.ok ? r.json() : []; }).then(function(rows){ processes = Array.isArray(rows) ? rows : []; renderProcesses(); });
+  fetch('/security/alerts' + (device ? '?deviceId=' + encodeURIComponent(device) : '')).then(function(r){ return r.ok ? r.json() : []; }).then(function(rows){ alerts = Array.isArray(rows) ? rows : []; renderAlerts(); });
+}
+function sendCommand(command) {
+  var device = shell.getDevice();
+  if (!device) { DashboardShell.toast('Command', 'Select a device first', 'danger'); return; }
+  fetch('/commands/send', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ deviceId: device, command: command }) })
+    .then(function(r){ return r.json(); }).then(function(data){
+      document.getElementById('commandStatus').textContent = data.error ? command + ' failed: ' + data.error : command + ' queued for ' + device;
+      DashboardShell.toast('Command', command + ' queued for ' + device, data.error ? 'danger' : 'success');
+    }).catch(function(){ DashboardShell.toast('Command', command + ' failed', 'danger'); });
+}
+function showCommands(show) {
+  document.getElementById('overviewView').style.display = show ? 'none' : '';
+  document.getElementById('commandsView').style.display = show ? '' : 'none';
+}
+document.getElementById('switchCommandsBtn').addEventListener('click', function(){ location.hash = location.hash === '#commands' ? '' : '#commands'; showCommands(location.hash === '#commands'); });
+document.querySelectorAll('[data-command]').forEach(function(btn){ btn.addEventListener('click', function(){ sendCommand(btn.dataset.command); }); });
+DashboardShell.connectStomp(['/topic/processes','/topic/security-alerts','/topic/alerts','/topic/commands','/topic/battery'], function(payload) {
+  if (payload.deviceId && Array.isArray(payload.processes)) { if (!shell.getDevice() || payload.deviceId === shell.getDevice()) { processes = payload.processes; renderProcesses(); } }
+  else if (payload.event === 'security_alert' || payload.message || payload.severity) { var alert = payload.data || payload; alerts.unshift(alert); renderAlerts(); DashboardShell.toast('Security alert', alert.message || alert.type || 'Alert', 'danger'); }
+  else if (payload.type === 'BATTERY_UPDATE' && payload.data) { renderMetrics(payload.data); }
+});
+window.addEventListener('devicechange', loadMetrics);
+window.addEventListener('shellrefresh', loadMetrics);
+showCommands(location.hash === '#commands');
+loadMetrics();
+setInterval(loadMetrics, 5000);
 </script>
-
 </body>
 </html>

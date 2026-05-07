@@ -2,6 +2,7 @@ package com.iotmonitor.controller;
 
 import com.iotmonitor.model.AppActivity;
 import com.iotmonitor.repository.AppActivityRepository;
+import com.iotmonitor.service.AlertService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
@@ -25,6 +26,9 @@ public class AppActivityController {
 
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
+
+    @Autowired
+    private AlertService alertService;
 
     /**
      * Receive app activity event from agent
@@ -50,7 +54,7 @@ public class AppActivityController {
         Map<String, Object> response = new HashMap<>();
 
         // Validate required fields
-        if (deviceId == null || appName == null || status == null) {
+        if (deviceId == null || deviceId.isBlank() || appName == null || appName.isBlank() || status == null || status.isBlank()) {
             System.out.println("❌ VALIDATION ERROR: Missing required fields");
             System.out.println("   - deviceId: " + deviceId);
             System.out.println("   - appName: " + appName);
@@ -59,6 +63,10 @@ public class AppActivityController {
             response.put("message", "Missing required fields: deviceId, appName, status");
             return response;
         }
+
+        deviceId = deviceId.trim();
+        appName = appName.trim();
+        status = status.trim().toUpperCase();
 
         // Validate status
         if (!status.equals("OPENED") && !status.equals("CLOSED")) {
@@ -104,7 +112,8 @@ public class AppActivityController {
         try {
             Map<String, Object> wsEvent = new HashMap<>();
             wsEvent.put("type", "APP_EVENT");
-            wsEvent.put("data", activity);
+            wsEvent.put("event", "app_activity");
+            wsEvent.put("data", saved);
             messagingTemplate.convertAndSend("/topic/app-activity", wsEvent);
             System.out.println("✅ WebSocket event sent to /topic/app-activity");
         } catch (Exception e) {
@@ -114,9 +123,12 @@ public class AppActivityController {
         // Check if alert should be triggered (example: certain apps)
         if (status.equals("OPENED") && shouldTriggerAlert(appName)) {
             try {
+                String alertMessage = appName + " opened on " + deviceId;
+                alertService.recordAlert(deviceId, "APP_ALERT", alertMessage, "HIGH");
                 Map<String, Object> alertEvent = new HashMap<>();
                 alertEvent.put("type", "APP_ALERT");
-                alertEvent.put("message", appName + " opened on " + deviceId);
+                alertEvent.put("event", "alert");
+                alertEvent.put("message", alertMessage);
                 alertEvent.put("appName", appName);
                 alertEvent.put("deviceId", deviceId);
                 alertEvent.put("timestamp", LocalDateTime.now());
@@ -249,18 +261,6 @@ public class AppActivityController {
     }
 
     private boolean shouldTriggerAlert(String appName) {
-        // List of apps that trigger alerts (can be configurable)
-        String[] alertApps = {
-            "spotify", "youtube", "netflix", "tiktok", "instagram",
-            "facebook", "twitter", "reddit", "telegram", "whatsapp"
-        };
-
-        String lowerAppName = appName.toLowerCase();
-        for (String alertApp : alertApps) {
-            if (lowerAppName.contains(alertApp)) {
-                return true;
-            }
-        }
-        return false;
+        return appName != null && appName.equalsIgnoreCase("Spotify");
     }
 }

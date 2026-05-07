@@ -3,6 +3,7 @@ package com.iotmonitor.controller;
 import com.iotmonitor.model.ProcessData;
 import com.iotmonitor.repository.ProcessDataRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,7 +13,6 @@ import java.util.Map;
 import java.util.Set;
 
 import com.iotmonitor.service.SupabaseStorageService;
-import org.springframework.beans.factory.annotation.Autowired;
 
 @RestController
 @RequestMapping("/processes")
@@ -32,14 +32,17 @@ public class ProcessController {
         String deviceId = (String) payload.get("deviceId");
         List<Map<String, Object>> processes = (List<Map<String, Object>>) payload.get("processes");
 
-        if (deviceId != null && processes != null) {
+        if (deviceId != null && !deviceId.isBlank() && processes != null) {
+            deviceId = deviceId.trim();
             // Save locally so devices can be discovered and history can be queried
+            String finalDeviceId = deviceId;
             List<ProcessData> processEntities = processes.stream()
                     .map(process -> {
                         String processName = String.valueOf(process.getOrDefault("name", "unknown"));
                         double cpuUsage = parseDouble(process.get("cpu"));
                         double memoryUsage = parseDouble(process.get("memory"));
-                        return new ProcessData(deviceId, processName, cpuUsage, memoryUsage);
+                        int instanceCount = parseInt(process.get("instanceCount"));
+                        return new ProcessData(finalDeviceId, processName, cpuUsage, memoryUsage, instanceCount);
                     })
                     .toList();
             processDataRepository.saveAll(processEntities);
@@ -68,9 +71,35 @@ public class ProcessController {
         }
     }
 
+    private int parseInt(Object value) {
+        if (value == null) {
+            return 1;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        try {
+            return Integer.parseInt(value.toString());
+        } catch (NumberFormatException e) {
+            return 1;
+        }
+    }
+
     @GetMapping("/{deviceId}")
     public List<ProcessData> getProcesses(@PathVariable String deviceId) {
         return processDataRepository.findByDeviceIdOrderByTimestampDesc(deviceId);
+    }
+
+    @GetMapping("/latest")
+    public List<ProcessData> getLatestProcesses(@RequestParam(required = false) String deviceId,
+                                                @RequestParam(required = false) String device,
+                                                @RequestParam(defaultValue = "20") int limit) {
+        String resolvedDeviceId = resolveDeviceId(deviceId != null ? deviceId : device);
+        if (resolvedDeviceId == null) {
+            return List.of();
+        }
+        int safeLimit = Math.max(1, Math.min(limit, 300));
+        return processDataRepository.findByDeviceIdOrderByTimestampDesc(resolvedDeviceId, PageRequest.of(0, safeLimit));
     }
 
     @GetMapping("/{deviceId}/high-cpu")
@@ -86,5 +115,12 @@ public class ProcessController {
     public List<String> getAllDevices() {
         Set<String> deviceIds = new HashSet<>(processDataRepository.findAllUniqueDeviceIds());
         return deviceIds.stream().sorted().toList();
+    }
+
+    private String resolveDeviceId(String deviceId) {
+        if (deviceId != null && !deviceId.isBlank()) {
+            return deviceId.trim();
+        }
+        return processDataRepository.findAllUniqueDeviceIds().stream().findFirst().orElse(null);
     }
 }

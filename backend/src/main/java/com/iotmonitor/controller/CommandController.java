@@ -14,6 +14,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -36,6 +37,11 @@ public class CommandController {
 
     // ✅ Pending per-device commands
     private static final Map<String, String> DEVICE_COMMANDS = new ConcurrentHashMap<>();
+
+    private static final Set<String> ALLOWED_COMMANDS = Set.of(
+            "RESTART", "SHUTDOWN", "SLEEP", "LOCK",
+            "SYNC_FILES", "TAKE_SCREENSHOT", "RESTART_AGENT"
+    );
 
     // ==========================
     // 🔍 AGENT CHECKS STATUS
@@ -87,6 +93,26 @@ public class CommandController {
     }
 
     // ==========================
+    // 🔒 LOCK COMMAND
+    // ==========================
+    @PostMapping("/lock")
+    public void lock() {
+        LAST_COMMAND = "LOCK";
+        HISTORY.add("LOCK at " + Instant.now());
+        System.out.println("🔒 Lock command sent");
+    }
+
+    // ==========================
+    // 🔄 RESTART COMMAND
+    // ==========================
+    @PostMapping("/restart")
+    public void restart() {
+        LAST_COMMAND = "RESTART";
+        HISTORY.add("RESTART at " + Instant.now());
+        System.out.println("🔄 Restart command sent");
+    }
+
+    // ==========================
     // �🔁 RESTART AGENT
     // ==========================
     @PostMapping("/restart-agent")
@@ -126,10 +152,14 @@ public class CommandController {
 
         String deviceId = request.getDeviceId().trim();
         String command = request.getCommand().trim().toUpperCase();
+        if (!ALLOWED_COMMANDS.contains(command) && !command.startsWith("KILL_PROCESS ")) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "Unsupported command", "allowed", ALLOWED_COMMANDS));
+        }
         DEVICE_COMMANDS.put(deviceId, command);
         HISTORY.add("SEND " + command + " to " + deviceId + " at " + Instant.now());
         System.out.println("📨 Command queued for " + deviceId + ": " + command);
-        return ResponseEntity.ok(Map.of("status", "queued", "deviceId", deviceId, "command", command));
+        return ResponseEntity.ok(Map.of("success", true, "status", "queued", "deviceId", deviceId, "command", command));
     }
 
     // ==========================
@@ -150,6 +180,12 @@ public class CommandController {
                 result.getStatus().trim(),
                 result.getTimestamp() == null ? Instant.now().toString() : result.getTimestamp().trim());
 
+        String status = result.getStatus().trim().toUpperCase();
+        if (!status.equals("SUCCESS") && !status.equals("FAILED")) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "status must be SUCCESS or FAILED"));
+        }
+
         HISTORY.add(message);
         System.out.println("✅ " + message);
 
@@ -157,9 +193,10 @@ public class CommandController {
         try {
             Map<String, Object> wsEvent = Map.of(
                 "type", "COMMAND_STATUS",
+                "event", "command_status",
                 "deviceId", result.getDeviceId().trim(),
                 "command", result.getCommand().trim(),
-                "status", result.getStatus().trim(),
+                "status", status,
                 "timestamp", result.getTimestamp() != null ? result.getTimestamp().trim() : Instant.now().toString()
             );
             messagingTemplate.convertAndSend("/topic/commands", wsEvent);

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Screen Monitoring</title>
+  <link rel="stylesheet" href="dashboard-shell.css">
+  <style>
+    .screen-frame { min-height: 420px; display: grid; place-items: center; background: #020617; border-radius: 18px; border: 1px solid var(--border); overflow: hidden; }
+    .screen-frame img { max-width: 100%; max-height: 70vh; display: block; }
+  </style>
+</head>
+<body>
+<template id="pageTemplate">
+  <div class="grid cols-4" style="margin-bottom:18px;">
+    <div class="card card-pad"><div class="metric-label">Status</div><div class="metric-value" id="screenStatus">--</div></div>
+    <div class="card card-pad"><div class="metric-label">Last Captured</div><div class="metric-value" id="lastCapture">--</div></div>
+    <div class="card card-pad"><div class="metric-label">Auto Refresh</div><div class="metric-value" id="autoState">ON</div></div>
+    <div class="card card-pad"><div class="metric-label">Device</div><div class="metric-value" id="deviceName">--</div></div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <div><div class="card-title">Live Screen Preview</div><div class="muted">Latest screenshot from the laptop agent.</div></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;"><button class="btn" id="captureBtn">Capture Now</button><button class="btn secondary" id="autoBtn">Pause Auto</button><button class="btn secondary" id="downloadBtn">Download</button></div>
+    </div>
+    <div class="card-pad"><div class="screen-frame" id="screenFrame"><div class="empty-state">Loading screenshot...</div></div></div>
+  </div>
+</template>
+<script src="dashboard-shell.js"></script>
+<script>
+var content = document.getElementById('pageTemplate').content.cloneNode(true);
+var shell = DashboardShell.init({ active: 'screen', title: 'Screen Monitoring', subtitle: 'Real-time screen capture with command-triggered refresh.', content: content });
+var autoRefresh = true;
+var intervalId;
+var lastUpdate = null;
+
+function setStatus(text, online) {
+  document.getElementById('screenStatus').textContent = text;
+  shell.setStatus(text, online);
+}
+function loadScreenshot() {
+  fetch('/screenshot?t=' + Date.now())
+    .then(function(r) { if (!r.ok) throw new Error('No screenshot'); return r.blob(); })
+    .then(function(blob) {
+      var url = URL.createObjectURL(blob);
+      document.getElementById('screenFrame').innerHTML = '<img src="' + url + '" alt="Live screen">';
+      lastUpdate = new Date();
+      document.getElementById('lastCapture').textContent = DashboardShell.formatTime(lastUpdate);
+      document.getElementById('deviceName').textContent = shell.getDevice() || 'All';
+      setStatus('Online', true);
+    })
+    .catch(function() {
+      document.getElementById('screenFrame').innerHTML = '<div class="empty-state">No screenshot available. Make sure the agent is running.</div>';
+      setStatus('Offline', false);
+    });
+}
+function captureNow() {
+  var device = shell.getDevice();
+  if (!device) { DashboardShell.toast('Screen capture', 'Select a device first', 'danger'); return; }
+  fetch('/commands/send', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ deviceId: device, command: 'TAKE_SCREENSHOT' }) })
+    .then(function(r) { return r.json(); })
+    .then(function() { DashboardShell.toast('Screen capture', 'Capture command queued', 'success'); setTimeout(loadScreenshot, 1500); })
+    .catch(function() { DashboardShell.toast('Screen capture', 'Capture command failed', 'danger'); });
+}
+function toggleAuto() {
+  autoRefresh = !autoRefresh;
+  document.getElementById('autoState').textContent = autoRefresh ? 'ON' : 'OFF';
+  document.getElementById('autoBtn').textContent = autoRefresh ? 'Pause Auto' : 'Resume Auto';
+  if (autoRefresh) startAuto(); else stopAuto();
+}
+function startAuto() { if (!intervalId) intervalId = setInterval(loadScreenshot, 3000); }
+function stopAuto() { clearInterval(intervalId); intervalId = null; }
+document.getElementById('captureBtn').addEventListener('click', captureNow);
+document.getElementById('autoBtn').addEventListener('click', toggleAuto);
+document.getElementById('downloadBtn').addEventListener('click', function() {
+  var a = document.createElement('a'); a.href = '/screenshot'; a.download = 'screenshot-' + new Date().toISOString().replace(/[:.]/g, '-') + '.png'; a.click();
+});
+window.addEventListener('shellrefresh', loadScreenshot);
+window.addEventListener('devicechange', function(){ document.getElementById('deviceName').textContent = shell.getDevice() || 'All'; });
+loadScreenshot();
+startAuto();
+</script>
+</body>
+</html>

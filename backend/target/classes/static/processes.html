@@ -1,75 +1,117 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Process Monitor</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Processes</title>
+  <link rel="stylesheet" href="dashboard-shell.css">
 </head>
 <body>
-    <div class="dashboard">
-        <!-- Sidebar -->
-        <nav class="sidebar">
-            <div class="sidebar-header">
-                <h2>IoT Monitor</h2>
-            </div>
-            <ul class="sidebar-menu">
-                <li data-page="dashboard"><a href="new-dashboard.html">Dashboard</a></li>
-                <li data-page="devices"><a href="#">Devices</a></li>
-                <li data-page="files"><a href="#">Files</a></li>
-                <li class="active" data-page="processes"><a href="#">Processes</a></li>
-                <li data-page="alerts"><a href="#">Alerts</a></li>
-                <li data-page="settings"><a href="#">Settings</a></li>
-            </ul>
-        </nav>
-
-        <!-- Main Content -->
-        <main class="main-content">
-            <!-- Topbar -->
-            <header class="topbar">
-                <div class="topbar-left">
-                    <button class="menu-toggle" id="menuToggle">☰</button>
-                    <h1>Process Monitor</h1>
-                </div>
-                <div class="topbar-right">
-                    <div class="notifications">
-                        <button id="notificationBtn">🔔</button>
-                        <span class="notification-badge" id="notificationBadge">0</span>
-                    </div>
-                    <div class="user-profile">
-                        <span>Admin</span>
-                        <img src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='10' fill='%23ccc'/><text x='12' y='16' text-anchor='middle' fill='white'>A</text></svg>" alt="User">
-                    </div>
-                </div>
-            </header>
-
-            <!-- Process Content -->
-            <div class="content">
-                <div class="controls">
-                    <input type="text" id="searchInput" placeholder="Search processes...">
-                    <select id="deviceSelect">
-                        <option value="default">Default Device</option>
-                    </select>
-                    <button id="refreshBtn">Refresh</button>
-                </div>
-
-                <div class="table-container">
-                    <table id="processTable">
-                        <thead>
-                            <tr>
-                                <th>Process Name</th>
-                                <th>CPU %</th>
-                                <th>Memory (MB)</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-            </div>
-        </main>
+<template id="pageTemplate">
+  <div class="grid cols-3" style="margin-bottom:18px;">
+    <div class="card card-pad"><div class="metric-label">Visible apps</div><div class="metric-value" id="totalProcesses">0</div></div>
+    <div class="card card-pad"><div class="metric-label">Average CPU</div><div class="metric-value" id="avgCpu">0%</div></div>
+    <div class="card card-pad"><div class="metric-label">Average Memory</div><div class="metric-value" id="avgMemory">0 MB</div></div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <div class="card-title">User-running Apps</div>
+        <div class="muted">System and background processes are filtered out.</div>
+      </div>
+      <input class="input" id="searchInput" placeholder="Search app name">
     </div>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>App</th><th>CPU</th><th>Memory</th><th>Last Seen</th><th>Status</th></tr></thead>
+        <tbody id="processRows"><tr><td colspan="5"><div class="empty-state">Waiting for live processes from the agent.</div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</template>
+<script src="dashboard-shell.js"></script>
+<script>
+var content = document.getElementById('pageTemplate').content.cloneNode(true);
+var shell = DashboardShell.init({ active: 'processes', title: 'Processes', subtitle: 'Live user app monitoring with background noise removed.', content: content });
+var allProcesses = [];
+var visibleAppNames = [
+  'chrome','firefox','msedge','microsoft edge','opera','brave','safari','teams','slack','discord','skype','zoom','webex',
+  'code','vscode','vs code','idea64','intellij','pycharm','webstorm','eclipse','sublime_text','notepad++',
+  'spotify','vlc','itunes','wmplayer','audacity','obs64','winword','excel','powerpnt','outlook','onenote','libreoffice',
+  'notepad','calc','explorer','file explorer','mspaint','snippingtool','powershell','cmd','command prompt','terminal',
+  'bash','zsh','7zfm','winrar','filezilla','putty','mstsc','gimp','photoshop','illustrator','premiere','aftereffects','blender','krita','inkscape'
+];
 
-    <script src="processes.js"></script>
+function normalizeName(name) {
+  return String(name || '').toLowerCase().replace(/\s+\(\d+\)$/, '').replace(/\.exe$/, '').trim();
+}
+function normalizeProcess(proc) {
+  return {
+    processName: proc.processName || proc.name || 'unknown',
+    cpuUsage: Number(proc.cpuUsage != null ? proc.cpuUsage : proc.cpu) || 0,
+    memoryUsage: Number(proc.memoryUsage != null ? proc.memoryUsage : proc.memory) || 0,
+    instanceCount: Number(proc.instanceCount || 1) || 1,
+    timestamp: proc.timestamp || new Date().toISOString()
+  };
+}
+function isVisible(name) {
+  var lower = normalizeName(name);
+  return visibleAppNames.some(function(app) { return lower === app || lower.indexOf(app) >= 0; });
+}
+function dedupe(processes) {
+  var unique = {};
+  (Array.isArray(processes) ? processes : []).forEach(function(proc) {
+    proc = normalizeProcess(proc);
+    if (!isVisible(proc.processName)) return;
+    var key = normalizeName(proc.processName);
+    var existing = unique[key];
+    if (!existing || new Date(proc.timestamp) >= new Date(existing.timestamp)) unique[key] = proc;
+  });
+  return Object.values(unique);
+}
+function render() {
+  var query = normalizeName(document.getElementById('searchInput').value);
+  var rows = dedupe(allProcesses).filter(function(proc) { return !query || normalizeName(proc.processName).indexOf(query) >= 0; })
+    .sort(function(a, b) { return b.cpuUsage - a.cpuUsage; });
+  var tbody = document.getElementById('processRows');
+  var totalCpu = rows.reduce(function(sum, row) { return sum + row.cpuUsage; }, 0);
+  var totalMem = rows.reduce(function(sum, row) { return sum + row.memoryUsage; }, 0);
+  document.getElementById('totalProcesses').textContent = rows.length;
+  document.getElementById('avgCpu').textContent = rows.length ? (totalCpu / rows.length).toFixed(1) + '%' : '0%';
+  document.getElementById('avgMemory').textContent = rows.length ? (totalMem / rows.length).toFixed(1) + ' MB' : '0 MB';
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state">No user-running apps found.</div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(function(proc) {
+    var cpu = Math.min(100, Math.max(0, proc.cpuUsage));
+    return '<tr><td><div class="row-title">' + DashboardShell.escapeHtml(proc.processName) +
+      '</div><div class="row-sub">' + proc.instanceCount + ' instance' + (proc.instanceCount === 1 ? '' : 's') +
+      '</div></td><td><div class="bar ' + (cpu > 80 ? 'red' : cpu > 50 ? 'yellow' : 'green') + '"><span style="width:' + cpu + '%"></span></div><div class="row-sub">' + cpu.toFixed(1) +
+      '%</div></td><td>' + proc.memoryUsage.toFixed(1) + ' MB</td><td>' + DashboardShell.formatTime(proc.timestamp) +
+      '</td><td><span class="badge badge-running">OPEN</span></td></tr>';
+  }).join('');
+}
+function loadProcesses() {
+  var device = shell.getDevice();
+  if (!device) {
+    document.getElementById('processRows').innerHTML = '<tr><td colspan="5"><div class="empty-state">Select a device to view processes.</div></td></tr>';
+    return;
+  }
+  fetch('/processes/latest?deviceId=' + encodeURIComponent(device) + '&limit=80')
+    .then(function(r) { return r.ok ? r.json() : []; })
+    .then(function(rows) { allProcesses = Array.isArray(rows) ? rows : []; render(); })
+    .catch(function() { document.getElementById('processRows').innerHTML = '<tr><td colspan="5"><div class="empty-state">Unable to load processes.</div></td></tr>'; });
+}
+DashboardShell.connectStomp(['/topic/processes'], function(payload) {
+  if (!payload || payload.deviceId !== shell.getDevice() || !Array.isArray(payload.processes)) return;
+  allProcesses = payload.processes;
+  render();
+});
+document.getElementById('searchInput').addEventListener('input', render);
+window.addEventListener('devicechange', loadProcesses);
+window.addEventListener('shellrefresh', loadProcesses);
+loadProcesses();
+</script>
 </body>
 </html>

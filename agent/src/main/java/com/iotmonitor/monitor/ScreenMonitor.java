@@ -19,15 +19,18 @@ public class ScreenMonitor {
 
     public void captureAndSend() {
         try {
-            Rectangle screenBounds = new Rectangle(Toolkit.getDefaultToolkit().getScreenSize());
-            BufferedImage image = robot.createScreenCapture(screenBounds);
-
-            try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-                ImageIO.write(image, "png", baos);
-                apiClient.sendScreenshot(baos.toByteArray());
-            }
+            apiClient.sendScreenshot(capturePng());
         } catch (Exception e) {
-            System.err.println("⚠️ Screen capture error: " + e.getMessage());
+            System.err.println("Screen capture error: " + e.getMessage());
+        }
+    }
+
+    public byte[] capturePng() throws Exception {
+        Rectangle screenBounds = new Rectangle(Toolkit.getDefaultToolkit().getScreenSize());
+        BufferedImage image = robot.createScreenCapture(screenBounds);
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            ImageIO.write(image, "png", baos);
+            return baos.toByteArray();
         }
     }
 }

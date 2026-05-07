@@ -1,0 +1,640 @@
+
+<h2 class="sr-only">IoT Laptop Monitor — live dashboard showing system metrics, app tracking, battery status, alerts, and remote commands for connected devices.</h2>
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-sans); }
+
+.shell { display: flex; height: 600px; border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); overflow: hidden; background: var(--color-background-primary); }
+
+.sidebar { width: 188px; flex-shrink: 0; border-right: 0.5px solid var(--color-border-tertiary); background: var(--color-background-secondary); display: flex; flex-direction: column; }
+.sidebar-logo { padding: 16px 14px 12px; border-bottom: 0.5px solid var(--color-border-tertiary); }
+.logo-text { font-size: 13px; font-weight: 500; color: var(--color-text-primary); }
+.logo-sub { font-size: 11px; color: var(--color-text-tertiary); margin-top: 2px; }
+
+.nav-section { padding: 10px 8px 4px; }
+.nav-label { font-size: 10px; color: var(--color-text-tertiary); padding: 0 6px 4px; letter-spacing: 0.05em; text-transform: uppercase; }
+.nav-item { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: var(--border-radius-md); font-size: 13px; color: var(--color-text-secondary); cursor: pointer; transition: background 0.15s; margin-bottom: 1px; }
+.nav-item:hover { background: var(--color-background-primary); color: var(--color-text-primary); }
+.nav-item.active { background: var(--color-background-primary); color: var(--color-text-primary); font-weight: 500; }
+.nav-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--color-border-secondary); flex-shrink: 0; }
+.nav-dot.online { background: #3B6D11; }
+.nav-dot.warn { background: #854F0B; }
+.nav-dot.offline { background: #A32D2D; }
+
+.device-section { margin-top: auto; padding: 10px 8px 12px; border-top: 0.5px solid var(--color-border-tertiary); }
+.device-pill { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: var(--border-radius-md); background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); }
+.device-avatar { width: 28px; height: 28px; border-radius: 6px; background: #B5D4F4; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; color: #0C447C; flex-shrink: 0; }
+.device-name { font-size: 12px; font-weight: 500; color: var(--color-text-primary); }
+.device-id { font-size: 10px; color: var(--color-text-tertiary); }
+
+.main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+.topbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 0.5px solid var(--color-border-tertiary); flex-shrink: 0; }
+.topbar-title { font-size: 14px; font-weight: 500; color: var(--color-text-primary); }
+.topbar-right { display: flex; align-items: center; gap: 8px; }
+.status-badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+.status-online { background: #EAF3DE; color: #27500A; }
+.status-offline { background: #FCEBEB; color: #791F1F; }
+.alert-bell { position: relative; width: 28px; height: 28px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-tertiary); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 13px; background: var(--color-background-primary); }
+.alert-count { position: absolute; top: -4px; right: -4px; width: 14px; height: 14px; border-radius: 50%; background: #E24B4A; color: #fff; font-size: 9px; display: flex; align-items: center; justify-content: center; font-weight: 500; }
+
+.content { padding: 14px 16px; flex: 1; }
+.section-hidden { display: none; }
+
+.metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+.metric-card { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 10px 12px; }
+.metric-label { font-size: 11px; color: var(--color-text-tertiary); margin-bottom: 6px; }
+.metric-val { font-size: 22px; font-weight: 500; color: var(--color-text-primary); line-height: 1; }
+.metric-sub { font-size: 10px; color: var(--color-text-tertiary); margin-top: 3px; }
+.metric-bar { height: 3px; border-radius: 2px; background: var(--color-border-tertiary); margin-top: 6px; overflow: hidden; }
+.metric-fill { height: 100%; border-radius: 2px; transition: width 0.8s ease; }
+.fill-blue { background: #378ADD; }
+.fill-amber { background: #EF9F27; }
+.fill-green { background: #639922; }
+.fill-red { background: #E24B4A; }
+
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.panel { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 12px; }
+.panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.panel-title { font-size: 12px; font-weight: 500; color: var(--color-text-primary); }
+.panel-action { font-size: 11px; color: var(--color-text-tertiary); cursor: pointer; }
+
+.app-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 0.5px solid var(--color-border-tertiary); }
+.app-row:last-child { border-bottom: none; }
+.app-icon { width: 24px; height: 24px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
+.app-name { font-size: 12px; color: var(--color-text-primary); flex: 1; }
+.app-time { font-size: 10px; color: var(--color-text-tertiary); }
+.app-status { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 500; }
+.opened { background: #EAF3DE; color: #27500A; }
+.closed { background: #F1EFE8; color: #5F5E5A; }
+.alert-tag { background: #FCEBEB; color: #791F1F; }
+
+.alert-row { display: flex; align-items: flex-start; gap: 8px; padding: 7px 0; border-bottom: 0.5px solid var(--color-border-tertiary); }
+.alert-row:last-child { border-bottom: none; }
+.alert-icon { width: 22px; height: 22px; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; margin-top: 1px; }
+.alert-icon-warn { background: #FAEEDA; color: #633806; }
+.alert-icon-info { background: #E6F1FB; color: #185FA5; }
+.alert-msg { font-size: 11px; color: var(--color-text-primary); line-height: 1.4; flex: 1; }
+.alert-ts { font-size: 10px; color: var(--color-text-tertiary); white-space: nowrap; }
+
+.cmd-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.cmd-btn { padding: 9px 10px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); background: var(--color-background-primary); font-size: 11px; font-weight: 500; color: var(--color-text-primary); cursor: pointer; text-align: center; transition: all 0.15s; }
+.cmd-btn:hover { background: var(--color-background-secondary); }
+.cmd-btn:active { transform: scale(0.97); }
+.cmd-btn.danger { border-color: #F09595; color: #A32D2D; }
+.cmd-btn.danger:hover { background: #FCEBEB; }
+.cmd-btn.warn { border-color: #FAC775; color: #633806; }
+.cmd-btn.warn:hover { background: #FAEEDA; }
+.cmd-btn.success { border-color: #C0DD97; color: #27500A; }
+.cmd-btn.success:hover { background: #EAF3DE; }
+
+.cmd-status { margin-top: 8px; padding: 7px 10px; border-radius: var(--border-radius-md); font-size: 11px; background: var(--color-background-secondary); color: var(--color-text-secondary); min-height: 30px; transition: all 0.3s; }
+.cmd-status.success { background: #EAF3DE; color: #27500A; }
+.cmd-status.error { background: #FCEBEB; color: #791F1F; }
+.cmd-status.pending { background: #FAEEDA; color: #633806; }
+
+.battery-wrap { display: flex; flex-direction: column; gap: 8px; }
+.battery-visual { display: flex; align-items: center; gap: 10px; }
+.battery-body { flex: 1; height: 24px; border: 1.5px solid var(--color-border-secondary); border-radius: 4px; overflow: hidden; position: relative; }
+.battery-fill-bar { height: 100%; border-radius: 2px; transition: width 1s ease, background 0.5s; }
+.battery-tip { width: 5px; height: 10px; background: var(--color-border-secondary); border-radius: 0 2px 2px 0; flex-shrink: 0; }
+.battery-pct { font-size: 20px; font-weight: 500; color: var(--color-text-primary); min-width: 48px; text-align: right; }
+.battery-meta { display: flex; justify-content: space-between; align-items: center; }
+.charge-label { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+.charging { background: #EAF3DE; color: #27500A; }
+.discharging { background: #FAEEDA; color: #633806; }
+.battery-est { font-size: 11px; color: var(--color-text-tertiary); }
+
+.chart-wrap { position: relative; height: 110px; width: 100%; }
+
+.toast-area { position: absolute; bottom: 16px; right: 16px; display: flex; flex-direction: column; gap: 6px; z-index: 10; pointer-events: none; }
+.toast { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 10px 14px; font-size: 12px; max-width: 240px; box-shadow: none; pointer-events: auto; animation: slide-in 0.3s ease; }
+.toast-title { font-weight: 500; color: var(--color-text-primary); margin-bottom: 3px; font-size: 12px; }
+.toast-body { color: var(--color-text-secondary); font-size: 11px; line-height: 1.4; }
+.toast.alert-toast { border-left: 3px solid #E24B4A; }
+.toast.cmd-toast { border-left: 3px solid #378ADD; }
+.toast.bat-toast { border-left: 3px solid #639922; }
+@keyframes slide-in { from { transform: translateX(30px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+.tab-row { display: flex; gap: 4px; margin-bottom: 12px; }
+.tab { padding: 5px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; color: var(--color-text-secondary); border: 0.5px solid transparent; }
+.tab.active { background: var(--color-background-secondary); border-color: var(--color-border-tertiary); color: var(--color-text-primary); font-weight: 500; }
+
+.hist-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 0.5px solid var(--color-border-tertiary); }
+.hist-row:last-child { border-bottom: none; }
+.hist-app { font-size: 12px; color: var(--color-text-primary); flex: 1; }
+.hist-device { font-size: 11px; color: var(--color-text-tertiary); min-width: 80px; }
+.hist-ts { font-size: 10px; color: var(--color-text-tertiary); }
+
+.proc-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
+.proc-name { font-size: 11px; color: var(--color-text-primary); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proc-bar-wrap { width: 60px; height: 4px; background: var(--color-border-tertiary); border-radius: 2px; overflow: hidden; }
+.proc-bar { height: 100%; border-radius: 2px; }
+.proc-val { font-size: 10px; color: var(--color-text-tertiary); min-width: 32px; text-align: right; }
+
+.empty-msg { font-size: 12px; color: var(--color-text-tertiary); text-align: center; padding: 20px 0; }
+</style>
+
+<div class="shell" style="position: relative;">
+
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-text">IoT Monitor</div>
+    <div class="logo-sub">v1.0 · 2 devices</div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-label">Views</div>
+    <div class="nav-item active" onclick="switchTab('overview')"><span class="nav-dot online"></span> Overview</div>
+    <div class="nav-item" onclick="switchTab('apps')"><span class="nav-dot online"></span> App activity</div>
+    <div class="nav-item" onclick="switchTab('commands')"><span class="nav-dot warn"></span> Commands</div>
+    <div class="nav-item" onclick="switchTab('history')"><span class="nav-dot online"></span> History</div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-label">Devices</div>
+    <div class="nav-item active" onclick="selectDevice('Nandy-pc-66d0')"><span class="nav-dot online"></span> Nandy-pc-66d0</div>
+    <div class="nav-item" onclick="selectDevice('Dev-laptop-88a1')"><span class="nav-dot warn"></span> Dev-laptop-88a1</div>
+  </div>
+
+  <div class="device-section">
+    <div class="device-pill">
+      <div class="device-avatar" id="avatarInitials">NP</div>
+      <div>
+        <div class="device-name" id="sidebarDeviceName">Nandy-pc-66d0</div>
+        <div class="device-id" id="sidebarStatus">Online · Windows</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title" id="topbarTitle">Overview — Nandy-pc-66d0</div>
+    <div class="topbar-right">
+      <span class="status-badge status-online" id="globalStatus">● Online</span>
+      <div class="alert-bell" onclick="clearAlerts()">
+        <span style="font-size:13px;">!</span>
+        <span class="alert-count" id="alertCount">3</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="content" id="contentArea">
+
+    <div id="tab-overview">
+      <div class="metric-grid">
+        <div class="metric-card">
+          <div class="metric-label">CPU usage</div>
+          <div class="metric-val" id="cpuVal">42%</div>
+          <div class="metric-sub" id="cpuSub">4 cores active</div>
+          <div class="metric-bar"><div class="metric-fill fill-blue" id="cpuBar" style="width:42%"></div></div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">RAM usage</div>
+          <div class="metric-val" id="ramVal">67%</div>
+          <div class="metric-sub" id="ramSub">10.7 GB / 16 GB</div>
+          <div class="metric-bar"><div class="metric-fill fill-amber" id="ramBar" style="width:67%"></div></div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Battery</div>
+          <div class="metric-val" id="batVal">78%</div>
+          <div class="metric-sub" id="batSub" style="color:#27500A;">Charging</div>
+          <div class="metric-bar"><div class="metric-fill fill-green" id="batBar" style="width:78%"></div></div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Uptime</div>
+          <div class="metric-val" id="uptimeVal">6h 14m</div>
+          <div class="metric-sub">since last boot</div>
+          <div class="metric-bar"><div class="metric-fill fill-blue" style="width:26%"></div></div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">Running processes</div>
+            <div class="panel-action" onclick="sendPrompt('Show top CPU-consuming processes on Nandy-pc-66d0')">More ↗</div>
+          </div>
+          <div id="procList"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">Battery detail</div>
+            <div class="panel-action" id="battSince">Updated 2s ago</div>
+          </div>
+          <div class="battery-wrap">
+            <div class="battery-visual">
+              <div class="battery-body">
+                <div class="battery-fill-bar" id="battFill" style="width:78%;background:#639922;"></div>
+              </div>
+              <div class="battery-tip"></div>
+              <div class="battery-pct" id="battPct">78%</div>
+            </div>
+            <div class="battery-meta">
+              <span class="charge-label charging" id="chargeLabel">Charging</span>
+              <span class="battery-est" id="battEst">~1h 22m to full</span>
+            </div>
+            <div class="chart-wrap" style="margin-top:6px;">
+              <canvas id="battChart" role="img" aria-label="Battery percentage over time, trending upward from 60 to 78 percent.">Battery history: rising trend from 60% to 78%.</canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">Live alerts</div>
+          <div class="panel-action" onclick="switchTab('history')">View history</div>
+        </div>
+        <div id="alertList"></div>
+      </div>
+    </div>
+
+    <div id="tab-apps" class="section-hidden">
+      <div class="tab-row">
+        <div class="tab active" onclick="setAppTab('all',this)">All apps</div>
+        <div class="tab" onclick="setAppTab('opened',this)">Opened</div>
+        <div class="tab" onclick="setAppTab('closed',this)">Closed</div>
+        <div class="tab" onclick="setAppTab('alerts',this)">Alerts only</div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">App activity — <span id="appTabLabel">all events</span></div>
+          <div class="panel-action" onclick="sendPrompt('How much time was Spotify open on Nandy-pc-66d0 today?')">Analyze ↗</div>
+        </div>
+        <div id="appList"></div>
+      </div>
+      <div style="margin-top:10px;">
+        <div class="panel">
+          <div class="panel-head"><div class="panel-title">Trigger simulation</div></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="cmd-btn" onclick="simulateApp('Spotify','OPENED',true)">Open Spotify (alert)</button>
+            <button class="cmd-btn" onclick="simulateApp('Chrome','OPENED',false)">Open Chrome</button>
+            <button class="cmd-btn" onclick="simulateApp('VS Code','OPENED',false)">Open VS Code</button>
+            <button class="cmd-btn warn" onclick="simulateApp('Spotify','CLOSED',false)">Close Spotify</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-commands" class="section-hidden">
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-head"><div class="panel-title">Remote commands</div></div>
+          <div class="cmd-grid">
+            <button class="cmd-btn warn" onclick="sendCommand('RESTART')">Restart</button>
+            <button class="cmd-btn danger" onclick="sendCommand('SHUTDOWN')">Shutdown</button>
+            <button class="cmd-btn" onclick="sendCommand('SLEEP')">Sleep</button>
+            <button class="cmd-btn success" onclick="sendCommand('SYNC_FILES')">Sync files</button>
+            <button class="cmd-btn" onclick="sendCommand('TAKE_SCREENSHOT')">Screenshot</button>
+            <button class="cmd-btn" onclick="sendCommand('RESTART_AGENT')">Restart agent</button>
+          </div>
+          <div class="cmd-status" id="cmdStatus">No command sent yet</div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><div class="panel-title">Kill process</div></div>
+          <div style="display:flex;gap:6px;margin-bottom:8px;">
+            <input type="text" id="killInput" placeholder="Process name (e.g. chrome)" style="flex:1;font-size:12px;padding:6px 10px;">
+            <button class="cmd-btn danger" onclick="sendKillProcess()" style="white-space:nowrap;">Kill</button>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;" id="killSuggestions">
+            <div style="font-size:11px;color:var(--color-text-tertiary);margin-bottom:2px;">Quick kill</div>
+          </div>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:10px;">
+        <div class="panel-head"><div class="panel-title">Command history</div></div>
+        <div id="cmdHistory"></div>
+      </div>
+    </div>
+
+    <div id="tab-history" class="section-hidden">
+      <div class="tab-row">
+        <div class="tab active" onclick="setHistTab('all',this)">All events</div>
+        <div class="tab" onclick="setHistTab('alerts',this)">Alerts</div>
+        <div class="tab" onclick="setHistTab('commands',this)">Commands</div>
+        <div class="tab" onclick="setHistTab('apps',this)">Apps</div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">Event history</div>
+          <div class="panel-action" onclick="sendPrompt('Export the full activity history for Nandy-pc-66d0')">Export ↗</div>
+        </div>
+        <div id="historyList"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast-area" id="toastArea"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+var currentDevice = 'Nandy-pc-66d0';
+var currentTab = 'overview';
+var appTabFilter = 'all';
+var histTabFilter = 'all';
+var alertCountVal = 3;
+var batteryPct = 78;
+var batteryCharging = true;
+var cpuVal = 42;
+var ramVal = 67;
+var uptimeSec = 22440;
+var battHistData = [60,62,64,65,67,68,70,71,73,74,76,77,78];
+var cmdHistoryLog = [];
+var battChart = null;
+
+var appEvents = [
+  { app: 'Spotify', status: 'OPENED', time: '09:14', device: 'Nandy-pc-66d0', isAlert: true },
+  { app: 'Chrome', status: 'OPENED', time: '09:10', device: 'Nandy-pc-66d0', isAlert: false },
+  { app: 'VS Code', status: 'OPENED', time: '09:05', device: 'Nandy-pc-66d0', isAlert: false },
+  { app: 'Discord', status: 'CLOSED', time: '08:58', device: 'Nandy-pc-66d0', isAlert: false },
+  { app: 'Slack', status: 'OPENED', time: '08:50', device: 'Nandy-pc-66d0', isAlert: false },
+  { app: 'Teams', status: 'CLOSED', time: '08:44', device: 'Nandy-pc-66d0', isAlert: false },
+  { app: 'Spotify', status: 'CLOSED', time: '08:40', device: 'Nandy-pc-66d0', isAlert: false },
+];
+
+var alerts = [
+  { icon: '!', cls: 'alert-icon-warn', msg: 'Spotify opened on Nandy-pc-66d0', ts: '09:14' },
+  { icon: 'i', cls: 'alert-icon-info', msg: 'CPU spike 89% on Nandy-pc-66d0', ts: '08:52' },
+  { icon: '!', cls: 'alert-icon-warn', msg: 'RAM exceeded 80% threshold', ts: '08:31' },
+];
+
+var processes = [
+  { name: 'chrome.exe', cpu: 23, mem: 412 },
+  { name: 'spotify.exe', cpu: 18, mem: 210 },
+  { name: 'code.exe', cpu: 14, mem: 380 },
+  { name: 'discord.exe', cpu: 8, mem: 175 },
+  { name: 'slack.exe', cpu: 6, mem: 290 },
+  { name: 'explorer.exe', cpu: 3, mem: 62 },
+];
+
+var quickKillApps = ['chrome.exe','spotify.exe','discord.exe'];
+
+var historyFull = [
+  { type:'alert', label:'Spotify alert', detail:'Opened on Nandy-pc-66d0', ts:'09:14', device:'Nandy-pc-66d0' },
+  { type:'app', label:'VS Code opened', detail:'Status: OPENED', ts:'09:05', device:'Nandy-pc-66d0' },
+  { type:'app', label:'Chrome opened', detail:'Status: OPENED', ts:'09:10', device:'Nandy-pc-66d0' },
+  { type:'command', label:'SYNC_FILES sent', detail:'Status: SUCCESS', ts:'08:59', device:'Nandy-pc-66d0' },
+  { type:'alert', label:'CPU spike 89%', detail:'High CPU alert triggered', ts:'08:52', device:'Nandy-pc-66d0' },
+  { type:'app', label:'Slack opened', detail:'Status: OPENED', ts:'08:50', device:'Nandy-pc-66d0' },
+  { type:'command', label:'TAKE_SCREENSHOT', detail:'Status: SUCCESS', ts:'08:47', device:'Nandy-pc-66d0' },
+  { type:'alert', label:'RAM 80% threshold', detail:'High RAM alert', ts:'08:31', device:'Nandy-pc-66d0' },
+];
+
+function now() {
+  var d = new Date();
+  return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
+  var idx = ['overview','apps','commands','history'].indexOf(tab);
+  document.querySelectorAll('.nav-item')[idx].classList.add('active');
+
+  ['overview','apps','commands','history'].forEach(function(t) {
+    var el = document.getElementById('tab-' + t);
+    if (el) el.style.display = t === tab ? '' : 'none';
+  });
+  currentTab = tab;
+  var titles = { overview:'Overview', apps:'App activity', commands:'Commands', history:'History' };
+  document.getElementById('topbarTitle').textContent = titles[tab] + ' — ' + currentDevice;
+  if (tab === 'apps') renderAppList();
+  if (tab === 'history') renderHistory();
+  if (tab === 'commands') renderCmdHistory();
+}
+
+function selectDevice(d) {
+  currentDevice = d;
+  var initials = d.split('-').slice(0,2).map(function(s){ return s[0].toUpperCase(); }).join('');
+  document.getElementById('avatarInitials').textContent = initials;
+  document.getElementById('sidebarDeviceName').textContent = d;
+  document.getElementById('sidebarStatus').textContent = d === 'Dev-laptop-88a1' ? 'Warning · Windows' : 'Online · Windows';
+  document.getElementById('topbarTitle').textContent = ['Overview','App activity','Commands','History'][['overview','apps','commands','history'].indexOf(currentTab)] + ' — ' + d;
+  if (d === 'Dev-laptop-88a1') {
+    document.getElementById('globalStatus').textContent = '● Warning';
+    document.getElementById('globalStatus').className = 'status-badge status-offline';
+  } else {
+    document.getElementById('globalStatus').textContent = '● Online';
+    document.getElementById('globalStatus').className = 'status-badge status-online';
+  }
+}
+
+function renderProcList() {
+  var el = document.getElementById('procList');
+  el.innerHTML = processes.map(function(p) {
+    var pct = Math.round(p.cpu);
+    var col = pct > 20 ? '#E24B4A' : pct > 10 ? '#EF9F27' : '#378ADD';
+    return '<div class="proc-row"><div class="proc-name">' + p.name + '</div><div class="proc-bar-wrap"><div class="proc-bar" style="width:' + Math.min(pct*3,100) + '%;background:' + col + ';"></div></div><div class="proc-val">' + pct + '%</div></div>';
+  }).join('');
+}
+
+function renderAlertList() {
+  var el = document.getElementById('alertList');
+  el.innerHTML = alerts.map(function(a) {
+    return '<div class="alert-row"><div class="alert-icon ' + a.cls + '">' + a.icon + '</div><div class="alert-msg">' + a.msg + '</div><div class="alert-ts">' + a.ts + '</div></div>';
+  }).join('');
+}
+
+function renderAppList() {
+  var filtered = appEvents.filter(function(e) {
+    if (appTabFilter === 'opened') return e.status === 'OPENED';
+    if (appTabFilter === 'closed') return e.status === 'CLOSED';
+    if (appTabFilter === 'alerts') return e.isAlert;
+    return true;
+  });
+  var el = document.getElementById('appList');
+  if (!filtered.length) { el.innerHTML = '<div class="empty-msg">No events for this filter</div>'; return; }
+  var icons = { Spotify:'SP', Chrome:'CH', 'VS Code':'VS', Discord:'DC', Slack:'SL', Teams:'TM', Default:'AP' };
+  var colors = { Spotify:'#9FE1CB', Chrome:'#B5D4F4', 'VS Code':'#CED0F6', Discord:'#F4C0D1', Slack:'#FAC775', Teams:'#B5D4F4', Default:'#D3D1C7' };
+  el.innerHTML = filtered.map(function(e) {
+    var ic = icons[e.app] || 'AP';
+    var bg = colors[e.app] || '#D3D1C7';
+    var stCls = e.status === 'OPENED' ? 'opened' : 'closed';
+    var alertTag = e.isAlert ? '<span class="app-status alert-tag">Alert</span>' : '';
+    return '<div class="app-row"><div class="app-icon" style="background:' + bg + ';color:#2C2C2A;">' + ic + '</div><div class="app-name">' + e.app + '</div><span class="app-status ' + stCls + '">' + e.status + '</span>' + alertTag + '<div class="app-time">' + e.time + '</div></div>';
+  }).join('');
+}
+
+function setAppTab(f, el) {
+  document.querySelectorAll('#tab-apps .tab').forEach(function(t){ t.classList.remove('active'); });
+  el.classList.add('active');
+  appTabFilter = f;
+  var labels = { all:'all events', opened:'opened only', closed:'closed only', alerts:'alerts only' };
+  document.getElementById('appTabLabel').textContent = labels[f];
+  renderAppList();
+}
+
+function simulateApp(app, status, isAlert) {
+  var e = { app:app, status:status, time:now(), device:currentDevice, isAlert:isAlert };
+  appEvents.unshift(e);
+  historyFull.unshift({ type:isAlert?'alert':'app', label:app+' '+status.toLowerCase(), detail:'Status: '+status, ts:now(), device:currentDevice });
+  if (isAlert) {
+    alerts.unshift({ icon:'!', cls:'alert-icon-warn', msg:app+' opened on '+currentDevice, ts:now() });
+    alertCountVal++;
+    document.getElementById('alertCount').textContent = alertCountVal;
+    showToast('App alert', app+' opened — alert triggered on '+currentDevice, 'alert-toast');
+    renderAlertList();
+  } else {
+    showToast('App event', app+' '+status.toLowerCase()+' on '+currentDevice, 'cmd-toast');
+  }
+  renderAppList();
+}
+
+function sendCommand(cmd) {
+  var el = document.getElementById('cmdStatus');
+  el.textContent = 'Sending ' + cmd + ' to ' + currentDevice + '...';
+  el.className = 'cmd-status pending';
+  setTimeout(function() {
+    var ok = Math.random() > 0.15;
+    el.textContent = ok ? cmd + ' executed successfully on ' + currentDevice : cmd + ' failed — device may be offline';
+    el.className = 'cmd-status ' + (ok ? 'success' : 'error');
+    var entry = { type:'command', label:cmd+' sent', detail:'Status: '+(ok?'SUCCESS':'FAILED'), ts:now(), device:currentDevice };
+    cmdHistoryLog.unshift({ cmd:cmd, status:ok?'SUCCESS':'FAILED', ts:now() });
+    historyFull.unshift(entry);
+    showToast('Command', cmd+' → '+(ok?'SUCCESS':'FAILED')+' on '+currentDevice, ok?'cmd-toast':'alert-toast');
+    renderCmdHistory();
+  }, 900 + Math.random()*600);
+}
+
+function sendKillProcess() {
+  var name = document.getElementById('killInput').value.trim();
+  if (!name) return;
+  sendCommand('KILL_PROCESS ' + name);
+  document.getElementById('killInput').value = '';
+}
+
+function renderCmdHistory() {
+  var el = document.getElementById('cmdHistory');
+  if (!cmdHistoryLog.length) { el.innerHTML = '<div class="empty-msg">No commands sent this session</div>'; return; }
+  el.innerHTML = cmdHistoryLog.map(function(c) {
+    var col = c.status === 'SUCCESS' ? 'opened' : 'alert-tag';
+    return '<div class="hist-row"><div class="hist-app" style="font-weight:500;">' + c.cmd + '</div><span class="app-status ' + col + '">' + c.status + '</span><div class="hist-ts">' + c.ts + '</div></div>';
+  }).join('');
+
+  var qs = document.getElementById('killSuggestions');
+  qs.innerHTML = '<div style="font-size:11px;color:var(--color-text-tertiary);margin-bottom:4px;">Quick kill</div>' + quickKillApps.map(function(a) {
+    return '<button class="cmd-btn danger" onclick="document.getElementById(\'killInput\').value=\'' + a + '\';sendKillProcess();" style="font-size:10px;padding:5px 8px;">' + a + '</button>';
+  }).join('');
+}
+
+function renderHistory() {
+  var filtered = historyFull.filter(function(e) {
+    if (histTabFilter === 'alerts') return e.type === 'alert';
+    if (histTabFilter === 'commands') return e.type === 'command';
+    if (histTabFilter === 'apps') return e.type === 'app';
+    return true;
+  });
+  var el = document.getElementById('historyList');
+  if (!filtered.length) { el.innerHTML = '<div class="empty-msg">No events found</div>'; return; }
+  var typeColor = { alert:'alert-tag', command:'opened', app:'closed' };
+  el.innerHTML = filtered.map(function(e) {
+    return '<div class="hist-row"><span class="app-status ' + typeColor[e.type] + '" style="min-width:64px;text-align:center;">' + e.type + '</span><div class="hist-app">' + e.label + '</div><div class="hist-device">' + e.device.substring(0,12) + '</div><div class="hist-ts">' + e.ts + '</div></div>';
+  }).join('');
+}
+
+function setHistTab(f, el) {
+  document.querySelectorAll('#tab-history .tab').forEach(function(t){ t.classList.remove('active'); });
+  el.classList.add('active');
+  histTabFilter = f;
+  renderHistory();
+}
+
+function clearAlerts() {
+  alertCountVal = 0;
+  document.getElementById('alertCount').textContent = '0';
+  document.getElementById('alertCount').style.display = 'none';
+}
+
+function showToast(title, body, cls) {
+  var area = document.getElementById('toastArea');
+  var t = document.createElement('div');
+  t.className = 'toast ' + cls;
+  t.innerHTML = '<div class="toast-title">' + title + '</div><div class="toast-body">' + body + '</div>';
+  area.appendChild(t);
+  setTimeout(function() { t.style.opacity = '0'; t.style.transition = 'opacity 0.4s'; setTimeout(function(){ t.remove(); }, 400); }, 3500);
+}
+
+function initBattChart() {
+  var ctx = document.getElementById('battChart').getContext('2d');
+  battChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: battHistData.map(function(_,i){ return (i*5)+'m'; }),
+      datasets: [{
+        data: battHistData,
+        borderColor: '#639922',
+        backgroundColor: 'rgba(99,153,34,0.08)',
+        borderWidth: 1.5,
+        pointRadius: 0,
+        tension: 0.4,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      scales: {
+        x: { display: false },
+        y: { display: false, min: 55, max: 85 }
+      },
+      animation: { duration: 600 }
+    }
+  });
+}
+
+function updateMetrics() {
+  cpuVal = Math.max(5, Math.min(95, cpuVal + (Math.random()-0.48)*6));
+  ramVal = Math.max(40, Math.min(90, ramVal + (Math.random()-0.5)*3));
+  if (batteryCharging) { batteryPct = Math.min(100, batteryPct + 0.3); }
+  else { batteryPct = Math.max(5, batteryPct - 0.2); }
+  uptimeSec += 3;
+
+  var cpu = Math.round(cpuVal);
+  var ram = Math.round(ramVal);
+  var bat = Math.round(batteryPct);
+  var h = Math.floor(uptimeSec/3600), m = Math.floor((uptimeSec%3600)/60);
+
+  document.getElementById('cpuVal').textContent = cpu + '%';
+  document.getElementById('cpuBar').style.width = cpu + '%';
+  document.getElementById('ramVal').textContent = ram + '%';
+  document.getElementById('ramBar').style.width = ram + '%';
+  document.getElementById('batVal').textContent = bat + '%';
+  document.getElementById('batBar').style.width = bat + '%';
+  document.getElementById('batBar').className = 'metric-fill ' + (bat > 50 ? 'fill-green' : bat > 20 ? 'fill-amber' : 'fill-red');
+  document.getElementById('uptimeVal').textContent = h + 'h ' + m + 'm';
+
+  document.getElementById('battPct').textContent = bat + '%';
+  document.getElementById('battFill').style.width = bat + '%';
+  document.getElementById('battFill').style.background = bat > 50 ? '#639922' : bat > 20 ? '#EF9F27' : '#E24B4A';
+  var est = batteryCharging ? Math.round((100 - bat) * 1.8) : Math.round(bat * 2.1);
+  document.getElementById('battEst').textContent = batteryCharging ? '~' + Math.floor(est/60) + 'h ' + (est%60) + 'm to full' : '~' + Math.floor(est/60) + 'h ' + (est%60) + 'm remaining';
+
+  battHistData.push(bat);
+  if (battHistData.length > 15) battHistData.shift();
+  if (battChart) {
+    battChart.data.datasets[0].data = battHistData;
+    battChart.data.labels = battHistData.map(function(_,i){ return (i*5)+'m'; });
+    battChart.update('none');
+  }
+}
+
+switchTab('overview');
+renderProcList();
+renderAlertList();
+renderAppList();
+renderCmdHistory();
+setTimeout(initBattChart, 300);
+setInterval(updateMetrics, 3000);
+setInterval(function() {
+  document.getElementById('battSince').textContent = 'Updated just now';
+  setTimeout(function(){ document.getElementById('battSince').textContent = 'Updated 3s ago'; }, 3100);
+}, 3000);
+
+document.getElementById('tab-apps').style.display = 'none';
+document.getElementById('tab-commands').style.display = 'none';
+document.getElementById('tab-history').style.display = 'none';
+</script>
