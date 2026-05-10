@@ -6,7 +6,6 @@ import com.iotmonitor.monitor.BatteryMonitor;
 import com.iotmonitor.monitor.ClipboardMonitor;
 import com.iotmonitor.monitor.LoginSessionMonitor;
 import com.iotmonitor.monitor.ProcessMonitor;
-import com.iotmonitor.monitor.ScreenMonitor;
 import com.iotmonitor.monitor.ScreenshotActivityMonitor;
 import com.iotmonitor.monitor.SecurityEventReporter;
 import com.iotmonitor.monitor.SystemMonitor;
@@ -73,15 +72,7 @@ public class App {
         ClipboardMonitor clipboardMonitor = new ClipboardMonitor(apiClient);
         scheduler.scheduleAtFixedRate(clipboardMonitor::collectAndSend, 0, 1, TimeUnit.SECONDS);
 
-        ScreenMonitor screenMonitor = null;
-        try {
-            screenMonitor = new ScreenMonitor(apiClient);
-            scheduler.scheduleAtFixedRate(screenMonitor::captureAndSend, 0, 10, TimeUnit.SECONDS);
-        } catch (AWTException e) {
-            System.err.println("⚠️ Unable to start screen monitor: " + e.getMessage());
-        }
-
-        SecurityEventReporter securityReporter = new SecurityEventReporter(apiClient, screenMonitor);
+        SecurityEventReporter securityReporter = new SecurityEventReporter(apiClient);
         LoginSessionMonitor loginSessionMonitor = new LoginSessionMonitor(securityReporter);
         loginSessionMonitor.reportStartupSession();
         scheduler.scheduleAtFixedRate(loginSessionMonitor::scanFailedLogins, 15, 30, TimeUnit.SECONDS);
@@ -92,7 +83,7 @@ public class App {
         ScreenshotActivityMonitor screenshotActivityMonitor = new ScreenshotActivityMonitor(securityReporter);
         scheduler.scheduleAtFixedRate(screenshotActivityMonitor::scanAndReport, 3, 2, TimeUnit.SECONDS);
 
-        Thread commandThread = new Thread(new CommandPoller(apiClient, syncService, screenMonitor, apiClient.getDeviceId(), 5000), "command-poller");
+        Thread commandThread = new Thread(new CommandPoller(apiClient, syncService, apiClient.getDeviceId(), 5000), "command-poller");
         commandThread.setDaemon(true);
         commandThread.start();
 

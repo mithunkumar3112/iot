@@ -1,6 +1,5 @@
 package com.iotmonitor.agent;
 
-import com.iotmonitor.monitor.ScreenMonitor;
 import com.iotmonitor.network.ApiClient;
 
 public class CommandPoller implements Runnable {
@@ -9,18 +8,15 @@ public class CommandPoller implements Runnable {
 
     private final ApiClient apiClient;
     private final FileSyncService fileSyncService;
-    private final ScreenMonitor screenMonitor;
     private final String deviceId;
     private final long intervalMs;
 
     public CommandPoller(ApiClient apiClient,
                          FileSyncService fileSyncService,
-                         ScreenMonitor screenMonitor,
                          String deviceId,
                          long intervalMs) {
         this.apiClient = apiClient;
         this.fileSyncService = fileSyncService;
-        this.screenMonitor = screenMonitor;
         this.deviceId = deviceId;
         this.intervalMs = intervalMs > 0 ? intervalMs : DEFAULT_POLL_INTERVAL_MS;
     }
@@ -75,12 +71,8 @@ public class CommandPoller implements Runnable {
     }
 
     private void executeScreenshot(String command) {
-        if (screenMonitor == null) {
-            System.err.println("⚠️ TAKE_SCREENSHOT unavailable: screen monitor not initialized");
-            apiClient.postCommandResult(deviceId, command, "FAILED");
-            return;
-        }
-        screenMonitor.captureAndSend();
+        // ScreenshotService is running automatically, just acknowledge the command
+        System.out.println("📸 TAKE_SCREENSHOT command received - ScreenshotService is capturing automatically");
         apiClient.postCommandResult(deviceId, command, "SUCCESS");
     }
 

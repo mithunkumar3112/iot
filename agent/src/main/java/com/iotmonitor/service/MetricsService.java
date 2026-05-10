@@ -10,6 +10,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
+import javax.annotation.PostConstruct;
+
 import java.lang.management.ManagementFactory;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -42,6 +44,11 @@ public class MetricsService {
     private final OperatingSystemMXBean osMxBean;
     private final long startTimeMs = System.currentTimeMillis();
 
+    @PostConstruct
+    public void init() {
+        System.out.println("📊 MetricsService initialized");
+    }
+
     public MetricsService(AgentConfig config, AuthService authService) {
         this.config      = config;
         this.authService = authService;
@@ -55,6 +62,7 @@ public class MetricsService {
 
     @Scheduled(fixedDelayString = "${agent.metrics-interval-ms:5000}")
     public void pushMetrics() {
+        System.out.println("🔄 Pushing metrics to backend...");
         try {
             double cpu    = osMxBean.getCpuLoad() * 100.0;
             if (cpu < 0) cpu = osMxBean.getProcessCpuLoad() * 100.0; // fallback
@@ -73,17 +81,21 @@ public class MetricsService {
             payload.put("ram",     Math.max(0, Math.min(100, ram)));
             payload.put("uptime",  uptimeSec);
             payload.put("battery", battery);
+            payload.put("deviceId", config.getDeviceId());
 
             HttpEntity<Map<String, Object>> req =
                 new HttpEntity<>(payload, jsonAuthHeaders());
 
             rest.postForEntity(config.getBackendUrl() + "/metrics", req, Void.class);
             log.debug("Metrics pushed — CPU: {:.1f}% RAM: {:.1f}%", cpu, ram);
+            System.out.println("📊 Metrics sent to " + config.getBackendUrl() + "/metrics - CPU: " + String.format("%.1f", cpu) + "% RAM: " + String.format("%.1f", ram) + "%");
 
         } catch (HttpClientErrorException.Unauthorized e) {
             authService.invalidateToken();
+            System.err.println("❌ Metrics upload failed: Unauthorized - invalid token");
         } catch (Exception ex) {
             log.warn("Metrics push failed: {}", ex.getMessage());
+            System.err.println("❌ Metrics upload failed: " + ex.getMessage());
         }
     }
 

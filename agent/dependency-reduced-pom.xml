@@ -20,7 +20,7 @@
         <artifactId>exec-maven-plugin</artifactId>
         <version>3.1.0</version>
         <configuration>
-          <mainClass>com.iotmonitor.agent.App</mainClass>
+          <mainClass>com.iotmonitor.agent.Laptopagentapplication</mainClass>
         </configuration>
       </plugin>
       <plugin>
@@ -35,10 +35,22 @@
             <configuration>
               <transformers>
                 <transformer>
-                  <mainClass>com.iotmonitor.agent.App</mainClass>
+                  <mainClass>com.iotmonitor.agent.Laptopagentapplication</mainClass>
                 </transformer>
               </transformers>
             </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <version>3.3.5</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>repackage</goal>
+            </goals>
           </execution>
         </executions>
       </plugin>

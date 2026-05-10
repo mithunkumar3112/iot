@@ -3,6 +3,8 @@ package com.iotmonitor.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 
+import javax.annotation.PostConstruct;
+
 import java.util.List;
 
 /**
@@ -23,7 +25,7 @@ public class AgentConfig {
     private String backendUrl;
 
     /** Device ID used by the laptop agent when polling commands */
-    @Value("${agent.device-id:unknown-device}")
+    @Value("${agent.device-id:}")
     private String deviceId;
 
     /** Email used to log in at /auth/email-login */
@@ -33,6 +35,15 @@ public class AgentConfig {
     /** Password for the above email */
     @Value("${agent.password:admin123}")
     private String password;
+
+    @PostConstruct
+    public void init() {
+        if (deviceId == null || deviceId.isBlank()) {
+            String username = System.getProperty("user.name", "unknown");
+            String hostname = "pc"; // Simplified hostname
+            deviceId = username + "-" + hostname + "-" + Integer.toHexString((username + hostname).hashCode()).substring(0, 4);
+        }
+    }
 
     // -----------------------------------------------------------------------
     // Task intervals

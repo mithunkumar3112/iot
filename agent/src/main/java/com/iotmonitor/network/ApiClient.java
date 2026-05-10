@@ -98,9 +98,9 @@ public class ApiClient {
             ResponseEntity<String> response = restTemplate.postForEntity(backendUrl + "/processes", requestEntity, String.class);
 
             if (response.getStatusCode().is2xxSuccessful()) {
-                System.out.println("✅ Processes sent successfully");
+                System.out.println("✅ Processes sent successfully to " + backendUrl + "/processes");
             } else {
-                System.err.println("❌ Failed to send processes (HTTP " + response.getStatusCode().value() + ")");
+                System.err.println("❌ Failed to send processes (HTTP " + response.getStatusCode().value() + ") to " + backendUrl + "/processes");
             }
 
         } catch (Exception e) {
@@ -110,25 +110,6 @@ public class ApiClient {
 
     public String getDeviceId() {
         return deviceId;
-    }
-
-    public void sendScreenshot(byte[] imageBytes) {
-        try {
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
-
-            HttpEntity<byte[]> requestEntity = new HttpEntity<>(imageBytes, headers);
-
-            ResponseEntity<String> response = restTemplate.postForEntity(backendUrl + "/screenshot", requestEntity, String.class);
-
-            if (response.getStatusCode().is2xxSuccessful()) {
-                System.out.println("✅ Screenshot sent successfully");
-            } else {
-                System.err.println("❌ Failed to send screenshot (HTTP " + response.getStatusCode().value() + ")");
-            }
-        } catch (Exception e) {
-            System.err.println("⚠️ Error sending screenshot: " + e.getMessage());
-        }
     }
 
     @SuppressWarnings("unchecked")

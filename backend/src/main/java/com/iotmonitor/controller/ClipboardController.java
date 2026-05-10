@@ -26,14 +26,21 @@ public class ClipboardController {
 
     @PostMapping("/update")
     public Map<String, Object> receiveClipboardUpdate(@RequestBody Map<String, Object> payload) {
+        System.out.println("\n=== 📋 CLIPBOARD UPDATE RECEIVED ===");
+        System.out.println("📋 Timestamp: " + java.time.LocalDateTime.now());
+        System.out.println("📋 Payload: " + payload);
+
         String deviceId = trimToNull(payload.get("deviceId"));
         String content = stringValue(payload.get("content"));
         String contentType = normalizeContentType(payload.get("contentType"));
         Object contentSizeObj = payload.get("contentSize");
         LocalDateTime timestamp = parseTimestamp(trimToNull(payload.get("timestamp")));
 
+        System.out.println("📋 Parsed: deviceId=" + deviceId + ", contentType=" + contentType + ", contentSize=" + contentSizeObj + ", contentPreview=" + (content != null ? content.substring(0, Math.min(50, content.length())) : "null"));
+
         Map<String, Object> response = new HashMap<>();
         if (deviceId == null || content == null) {
+            System.out.println("❌ CLIPBOARD VALIDATION FAILED: Missing deviceId or content");
             response.put("success", false);
             response.put("message", "Missing required fields: deviceId, content");
             return response;
@@ -45,6 +52,8 @@ public class ClipboardController {
                 new ClipboardEntry(deviceId, content, contentType, contentSize, timestamp)
         );
 
+        System.out.println("✅ CLIPBOARD SAVED: ID=" + saved.getId() + ", Device=" + deviceId);
+
         Map<String, Object> entry = toClipboardDto(saved);
         Map<String, Object> wsEvent = new HashMap<>();
         wsEvent.put("type", "CLIPBOARD_UPDATED");
@@ -53,6 +62,8 @@ public class ClipboardController {
         wsEvent.put("timestamp", saved.getTimestamp().toString());
         wsEvent.put("data", entry);
         messagingTemplate.convertAndSend("/topic/clipboard", wsEvent);
+
+        System.out.println("✅ CLIPBOARD WEBSOCKET SENT to /topic/clipboard");
 
         response.put("success", true);
         response.put("entry", entry);

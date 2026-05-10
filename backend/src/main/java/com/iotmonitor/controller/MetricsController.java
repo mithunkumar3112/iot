@@ -1,14 +1,10 @@
 package com.iotmonitor.controller;
 
 import com.iotmonitor.service.AlertService;
-import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -20,24 +16,14 @@ public class MetricsController {
     @Autowired
     private AlertService alertService;
 
-    // Directory where screenshots are stored (shared between backend + frontend)
-    @Value("${app.file.storage-dir:C:/shared-files/screenshots}")
-    private String screenshotDir;
+    @Autowired
+    private SimpMessagingTemplate messagingTemplate;
 
     // Stores latest metrics for dashboard
     private static Map<String, Object> latestMetrics = new HashMap<>();
 
     // Used for ONLINE / OFFLINE status
     private static Instant lastSeen = Instant.now();
-
-    private Path screenshotPath;
-
-    @PostConstruct
-    public void init() throws Exception {
-        Path baseDir = Paths.get(screenshotDir);
-        Files.createDirectories(baseDir);
-        screenshotPath = baseDir.resolve("latest.png");
-    }
 
     // ================================
     // 📊 RECEIVE METRICS FROM AGENT
@@ -47,6 +33,11 @@ public class MetricsController {
 
         latestMetrics = json;
         lastSeen = Instant.now();
+
+        System.out.println("📊 Received metrics from agent: CPU=" + json.get("cpu") + "%, RAM=" + json.get("ram") + "%, Battery=" + json.get("battery") + "%, Uptime=" + json.get("uptime") + "s");
+
+        // Broadcast metrics update via WebSocket
+        messagingTemplate.convertAndSend("/topic/metrics", json);
 
         // Optional logging and alerts
         if (json.containsKey("cpu") && json.containsKey("ram")) {
@@ -90,17 +81,4 @@ public class MetricsController {
         return "ONLINE";
     }
 
-    // ================================
-    // 🖼 RECEIVE SCREENSHOT FROM AGENT
-    // ================================
-    @PostMapping(
-        value = "/screenshot",
-        consumes = "application/octet-stream"
-    )
-    public void receiveScreenshot(@RequestBody byte[] image)
-            throws Exception {
-
-        Files.write(screenshotPath, image);
-    }
-    
 }

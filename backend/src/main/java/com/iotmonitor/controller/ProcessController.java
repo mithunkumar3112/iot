@@ -32,6 +32,15 @@ public class ProcessController {
         String deviceId = (String) payload.get("deviceId");
         List<Map<String, Object>> processes = (List<Map<String, Object>>) payload.get("processes");
 
+        System.out.println("\n=== 📊 PROCESSES RECEIVED ===");
+        System.out.println("📊 Timestamp: " + java.time.LocalDateTime.now());
+        System.out.println("📊 Device ID: " + deviceId);
+        System.out.println("📊 Process count: " + (processes != null ? processes.size() : "null"));
+
+        if (processes != null && processes.size() > 0) {
+            System.out.println("📊 Sample process: " + processes.get(0));
+        }
+
         if (deviceId != null && !deviceId.isBlank() && processes != null) {
             deviceId = deviceId.trim();
             // Save locally so devices can be discovered and history can be queried
@@ -47,6 +56,8 @@ public class ProcessController {
                     .toList();
             processDataRepository.saveAll(processEntities);
 
+            System.out.println("✅ PROCESSES SAVED: " + processEntities.size() + " entities for device " + deviceId);
+            
             // Log to Supabase Cloud if configured
             if (supabaseStorageService != null) {
                 supabaseStorageService.logProcessesToSupabase(deviceId, processes);
@@ -54,12 +65,11 @@ public class ProcessController {
             
             // Emit WebSocket event for real-time update
             messagingTemplate.convertAndSend("/topic/processes", payload);
+            System.out.println("✅ PROCESSES WEBSOCKET SENT to /topic/processes");
+        } else {
+            System.out.println("❌ PROCESSES VALIDATION FAILED: deviceId=" + deviceId + ", processes=" + (processes != null));
         }
-    }
-
-    private double parseDouble(Object value) {
-        if (value == null) {
-            return 0.0;
+        System.out.println("=== END PROCESSES ===\n");
         }
         if (value instanceof Number) {
             return ((Number) value).doubleValue();

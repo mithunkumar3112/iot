@@ -66,7 +66,6 @@ public class SecurityConfig {
                     "/manifest.json",
                     "/service-worker.js",
                     "/auth/**",
-                    "/screenshot",
                     "/reverselink/discover",
                     "/reverselink/**",
                     "/favicon.ico",

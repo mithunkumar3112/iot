@@ -352,12 +352,33 @@ const screenImg = document.getElementById("screen");
 if (screenImg) {
 
 function loadScreenshot() {
-
-screenImg.src = "/screenshot?time=" + new Date().getTime();
-
+    // Use new API-based screenshot loading
+    const deviceId = localStorage.getItem('deviceId') || 'default';
+    fetch('/api/screenshots/latest?deviceId=' + encodeURIComponent(deviceId) + '&t=' + new Date().getTime())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Screenshot not available');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.imageUrl) {
+                screenImg.src = data.imageUrl;
+            } else {
+                throw new Error('Invalid response format');
+            }
+        })
+        .catch(error => {
+            console.warn('Screenshot load failed:', error.message);
+            // Show placeholder when screenshot unavailable
+            screenImg.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjNGNEY2Ii8+Cjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM5Q0E0QUYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5ObyBzY3JlZW5zaG90IGF2YWlsYWJsZTwvdGV4dD4KPC9zdmc+';
+        });
 }
 
 setInterval(loadScreenshot, 3000);
+
+// Load initial screenshot
+loadScreenshot();
 
 }
 // ===============================

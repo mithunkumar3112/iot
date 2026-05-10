@@ -20,7 +20,12 @@ public class SessionController {
 
     @PostMapping("/sessions")
     public LoginSession createSession(@RequestBody LoginSession session) {
-        return securityService.recordSession(session);
+        System.out.println("\n=== 👤 SESSION RECEIVED ===");
+        System.out.println("👤 Timestamp: " + java.time.LocalDateTime.now());
+        System.out.println("👤 Payload: " + session);
+        LoginSession saved = securityService.recordSession(session);
+        System.out.println("✅ SESSION SAVED: ID=" + saved.getId() + ", Device=" + saved.getDeviceId() + ", Status=" + saved.getStatus());
+        return saved;
     }
 
     @GetMapping("/sessions")

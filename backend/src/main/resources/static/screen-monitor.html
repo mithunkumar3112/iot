@@ -39,15 +39,35 @@ function setStatus(text, online) {
   shell.setStatus(text, online);
 }
 function loadScreenshot() {
-  fetch('/screenshot?t=' + Date.now())
-    .then(function(r) { if (!r.ok) throw new Error('No screenshot'); return r.blob(); })
-    .then(function(blob) {
-      var url = URL.createObjectURL(blob);
-      document.getElementById('screenFrame').innerHTML = '<img src="' + url + '" alt="Live screen">';
-      lastUpdate = new Date();
-      document.getElementById('lastCapture').textContent = DashboardShell.formatTime(lastUpdate);
-      document.getElementById('deviceName').textContent = shell.getDevice() || 'All';
-      setStatus('Online', true);
+  var device = shell.getDevice();
+  if (!device) {
+    document.getElementById('screenFrame').innerHTML = '<div class="empty-state">Select a device to view screenshots</div>';
+    setStatus('No Device', false);
+    return;
+  }
+  fetch('/api/screenshots/latest?deviceId=' + encodeURIComponent(device) + '&t=' + Date.now())
+    .then(function(r) {
+      if (!r.ok) throw new Error('No screenshot available');
+      return r.json();
+    })
+    .then(function(data) {
+      if (data.imageUrl) {
+        document.getElementById('screenFrame').innerHTML = '<img src="' + data.imageUrl + '" alt="Live screen">';
+        lastUpdate = new Date();
+        document.getElementById('lastCapture').textContent = DashboardShell.formatTime(lastUpdate);
+        document.getElementById('deviceName').textContent = device;
+        setStatus('Online', true);
+      } else {
+        throw new Error('Invalid response');
+      }
+    })
+    .catch(function(err) {
+      console.warn('Screenshot load failed:', err.message);
+      document.getElementById('screenFrame').innerHTML = '<div class="empty-state">No screenshot available</div>';
+      document.getElementById('lastCapture').textContent = '--';
+      setStatus('Offline', false);
+    });
+}
     })
     .catch(function() {
       document.getElementById('screenFrame').innerHTML = '<div class="empty-state">No screenshot available. Make sure the agent is running.</div>';
@@ -73,7 +93,21 @@ function stopAuto() { clearInterval(intervalId); intervalId = null; }
 document.getElementById('captureBtn').addEventListener('click', captureNow);
 document.getElementById('autoBtn').addEventListener('click', toggleAuto);
 document.getElementById('downloadBtn').addEventListener('click', function() {
-  var a = document.createElement('a'); a.href = '/screenshot'; a.download = 'screenshot-' + new Date().toISOString().replace(/[:.]/g, '-') + '.png'; a.click();
+  var device = shell.getDevice();
+  if (!device) { DashboardShell.toast('Download', 'Select a device first', 'danger'); return; }
+  fetch('/api/screenshots/latest?deviceId=' + encodeURIComponent(device))
+    .then(function(r) { if (!r.ok) throw new Error('No screenshot'); return r.json(); })
+    .then(function(data) {
+      if (data.imageUrl) {
+        var a = document.createElement('a');
+        a.href = data.imageUrl;
+        a.download = 'screenshot-' + device + '-' + new Date().toISOString().replace(/[:.]/g, '-') + '.png';
+        a.click();
+      } else {
+        throw new Error('No image URL');
+      }
+    })
+    .catch(function() { DashboardShell.toast('Download', 'Download failed', 'danger'); });
 });
 window.addEventListener('shellrefresh', loadScreenshot);
 window.addEventListener('devicechange', function(){ document.getElementById('deviceName').textContent = shell.getDevice() || 'All'; });

@@ -106,11 +106,17 @@ function renderMetrics(data) {
     document.getElementById('ramBar').style.width = ram + '%';
   }
   var batteryValue = parseMetric(data.battery);
-  if (batteryValue !== null) {
+  if (batteryValue !== null && batteryValue >= 0 && batteryValue <= 100) {
     lastMetrics.battery = batteryValue;
     var battery = pct(batteryValue);
     document.getElementById('batteryVal').textContent = battery + '%';
     document.getElementById('batteryBar').style.width = battery + '%';
+  } else if (batteryValue === null || batteryValue < 0) {
+    // Keep existing value or show "N/A" if no valid battery data ever received
+    if (lastMetrics.battery === null) {
+      document.getElementById('batteryVal').textContent = 'N/A';
+      document.getElementById('batteryBar').style.width = '0%';
+    }
   }
   var uptimeValue = parseMetric(data.uptime);
   if (uptimeValue !== null) {
@@ -144,11 +150,33 @@ function loadMetrics() {
     .then(function(data) {
       if (parseMetric(data.cpu) !== null || parseMetric(data.ram) !== null || parseMetric(data.battery) !== null || parseMetric(data.uptime) !== null) {
         renderMetrics(data);
+        shell.setStatus('Live', true);
+      } else {
+        // If no live data, try to restore cached metrics
+        restoreCachedMetrics();
+        shell.setStatus('Offline', false);
       }
     })
-    .catch(function() { shell.setStatus('Waiting', false); });
+    .catch(function(err) {
+      console.warn('Metrics load failed:', err.message);
+      // Restore cached metrics on error
+      restoreCachedMetrics();
+      shell.setStatus('Offline', false);
+    });
   var device = shell.getDevice();
-  if (device) fetch('/processes/latest?deviceId=' + encodeURIComponent(device) + '&limit=20').then(function(r){ return r.ok ? r.json() : []; }).then(function(rows){ processes = Array.isArray(rows) ? rows : []; renderProcesses(); });
+  // Load processes - try selected device first, then fallback to any device
+  var processPromise = device 
+    ? fetch('/processes/latest?deviceId=' + encodeURIComponent(device) + '&limit=20')
+    : fetch('/processes/devices').then(function(r) {
+        return r.ok ? r.json() : [];
+      }).then(function(devices) {
+        if (devices && devices.length > 0) {
+          return fetch('/processes/latest?deviceId=' + encodeURIComponent(devices[0]) + '&limit=20');
+        }
+        return { ok: true, json: function() { return []; } };
+      });
+  processPromise.then(function(r){ return r.ok ? r.json() : []; }).then(function(rows){ processes = Array.isArray(rows) ? rows : []; renderProcesses(); });
+  
   fetch('/security/alerts' + (device ? '?deviceId=' + encodeURIComponent(device) : '')).then(function(r){ return r.ok ? r.json() : []; }).then(function(rows){ alerts = Array.isArray(rows) ? rows : []; renderAlerts(); });
 }
 function sendCommand(command) {
@@ -166,10 +194,11 @@ function showCommands(show) {
 }
 document.getElementById('switchCommandsBtn').addEventListener('click', function(){ location.hash = location.hash === '#commands' ? '' : '#commands'; showCommands(location.hash === '#commands'); });
 document.querySelectorAll('[data-command]').forEach(function(btn){ btn.addEventListener('click', function(){ sendCommand(btn.dataset.command); }); });
-DashboardShell.connectStomp(['/topic/processes','/topic/security-alerts','/topic/alerts','/topic/commands','/topic/battery'], function(payload) {
+DashboardShell.connectStomp(['/topic/processes','/topic/security-alerts','/topic/alerts','/topic/commands','/topic/battery','/topic/metrics'], function(payload) {
   if (payload.deviceId && Array.isArray(payload.processes)) { if (!shell.getDevice() || payload.deviceId === shell.getDevice()) { processes = payload.processes; renderProcesses(); } }
   else if (payload.event === 'security_alert' || payload.message || payload.severity) { var alert = payload.data || payload; alerts.unshift(alert); renderAlerts(); DashboardShell.toast('Security alert', alert.message || alert.type || 'Alert', 'danger'); }
   else if (payload.type === 'BATTERY_UPDATE' && payload.data) { renderMetrics(payload.data); }
+  else if (payload.cpu !== undefined || payload.ram !== undefined || payload.battery !== undefined || payload.uptime !== undefined) { renderMetrics(payload); shell.setStatus('Live', true); }
 });
 window.addEventListener('devicechange', loadMetrics);
 window.addEventListener('shellrefresh', loadMetrics);

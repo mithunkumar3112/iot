@@ -2,20 +2,29 @@ package com.iotmonitor.monitor;
 
 import com.iotmonitor.network.ApiClient;
 
+import javax.imageio.ImageIO;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
 public class SecurityEventReporter {
     private final ApiClient apiClient;
-    private final ScreenMonitor screenMonitor;
 
-    public SecurityEventReporter(ApiClient apiClient, ScreenMonitor screenMonitor) {
+    public SecurityEventReporter(ApiClient apiClient) {
         this.apiClient = apiClient;
-        this.screenMonitor = screenMonitor;
     }
 
     public void reportSecurityAlert(String type, String message, String severity, String source) {
+        System.out.println("\n=== 🚨 SECURITY ALERT ===");
+        System.out.println("🚨 Type: " + type);
+        System.out.println("🚨 Message: " + message);
+        System.out.println("🚨 Severity: " + severity);
+        System.out.println("🚨 Source: " + source);
+        System.out.println("🚨 Device ID: " + apiClient.getDeviceId());
+
         Map<String, Object> payload = new HashMap<>();
         payload.put("deviceId", apiClient.getDeviceId());
         payload.put("deviceName", apiClient.getDeviceId());
@@ -24,8 +33,14 @@ public class SecurityEventReporter {
         payload.put("severity", severity);
         payload.put("source", source);
         payload.put("timestamp", LocalDateTime.now().toString());
+
+        System.out.println("🚨 Sending payload: " + payload);
+
         Map<String, Object> response = apiClient.sendSecurityAlert(payload);
+        System.out.println("🚨 Response: " + response);
+
         captureScreenshot(extractId(response), null, type);
+        System.out.println("✅ Security alert reported");
     }
 
     public void reportScreenshotActivity(String processName, String trigger) {
@@ -65,11 +80,28 @@ public class SecurityEventReporter {
     }
 
     private void captureScreenshot(Long alertId, Long usbActivityId, String eventType) {
-        if (screenMonitor == null) return;
         try {
-            apiClient.sendSecurityScreenshot(screenMonitor.capturePng(), alertId, usbActivityId, eventType);
+            byte[] screenshot = captureScreenPng();
+            if (screenshot != null) {
+                apiClient.sendSecurityScreenshot(screenshot, alertId, usbActivityId, eventType);
+            }
         } catch (Exception e) {
             System.err.println("Security screenshot capture skipped: " + e.getMessage());
+        }
+    }
+
+    private byte[] captureScreenPng() {
+        try {
+            Robot robot = new Robot();
+            Rectangle screenBounds = new Rectangle(Toolkit.getDefaultToolkit().getScreenSize());
+            BufferedImage image = robot.createScreenCapture(screenBounds);
+            try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+                ImageIO.write(image, "png", baos);
+                return baos.toByteArray();
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to capture screenshot: " + e.getMessage());
+            return null;
         }
     }
 

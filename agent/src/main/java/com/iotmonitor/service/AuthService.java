@@ -31,6 +31,7 @@ public class AuthService {
     public AuthService(AgentConfig config) {
         this.config = config;
         this.rest   = new RestTemplate();
+        System.out.println("🔐 AuthService initialized with backend: " + config.getBackendUrl());
     }
 
     // -----------------------------------------------------------------------

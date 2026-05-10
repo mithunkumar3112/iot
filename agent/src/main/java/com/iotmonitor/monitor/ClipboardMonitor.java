@@ -24,28 +24,39 @@ public class ClipboardMonitor {
 
     public void collectAndSend() {
         try {
+            System.out.println("\n=== 📋 CLIPBOARD MONITOR CHECK ===");
             ClipboardData data = readClipboard();
             if (data == null) {
+                System.out.println("📋 No clipboard data detected");
                 return;
             }
 
+            System.out.println("📋 Clipboard data type: " + data.type);
+            System.out.println("📋 Content preview: " + (data.content.length() > 50 ? data.content.substring(0, 50) + "..." : data.content));
+
             if ("text".equals(data.type) && data.content.equals(lastSentText)) {
+                System.out.println("📋 Text unchanged, skipping");
                 return;
             }
 
             if ("image".equals(data.type) && data.imageHashCode != null && data.imageHashCode.equals(lastSentImageHashCode)) {
+                System.out.println("📋 Image unchanged, skipping");
                 return;
             }
 
             if ("text".equals(data.type)) {
                 lastSentText = data.content;
+                System.out.println("📋 Updated last sent text");
             } else if ("image".equals(data.type)) {
                 lastSentImageHashCode = data.imageHashCode;
+                System.out.println("📋 Updated last sent image hash");
             }
 
             sendClipboardUpdate(data, Instant.now());
+            System.out.println("✅ Clipboard update sent");
+
         } catch (Exception e) {
-            System.err.println("Clipboard monitor error: " + e.getMessage());
+            System.err.println("❌ Clipboard monitor error: " + e.getMessage());
         }
     }
 
@@ -111,6 +122,7 @@ public class ClipboardMonitor {
     }
 
     private void sendClipboardUpdate(ClipboardData data, Instant timestamp) {
+        System.out.println("📋 Preparing clipboard update payload");
         Map<String, Object> payload = new HashMap<>();
         payload.put("deviceId", apiClient.getDeviceId());
         payload.put("contentType", data.type);
@@ -118,7 +130,10 @@ public class ClipboardMonitor {
         payload.put("contentSize", data.size);
         payload.put("timestamp", timestamp.toString());
         payload.put("hasImage", data.type.equals("image"));
+
+        System.out.println("📋 Payload: " + payload);
         apiClient.sendClipboardUpdate(payload);
+        System.out.println("📋 Clipboard update API call completed");
     }
 
     private static class ClipboardData {

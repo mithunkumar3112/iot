@@ -148,11 +148,23 @@ public class ProcessMonitor {
         );
 
         // Send grouped, filtered processes to backend
-        System.out.println("📊 Sending " + filteredProcesses.size() + " grouped user processes (from " + processGroups.size() + " groups, " + allProcesses.size() + " total processes)");
+        System.out.println("\n=== 📊 SENDING PROCESSES ===");
+        System.out.println("📊 Total processes collected: " + allProcesses.size());
+        System.out.println("📊 Groups created: " + processGroups.size());
+        System.out.println("📊 Filtered processes to send: " + filteredProcesses.size());
+        System.out.println("📊 Device ID: " + apiClient.getDeviceId());
+        System.out.println("📊 Backend URL: " + apiClient.getBackendUrl() + "/processes");
+
+        for (Map<String, Object> proc : filteredProcesses) {
+            System.out.println("📊 Process: " + proc.get("name") + " | CPU: " + proc.get("cpu") + "% | Memory: " + proc.get("memory") + "MB");
+        }
+
         apiClient.sendProcesses(Map.of(
             "deviceId", apiClient.getDeviceId(),
             "processes", filteredProcesses
         ));
+
+        System.out.println("✅ Processes sent successfully");
     }
 
     private boolean isBackgroundProcess(String processName) {
