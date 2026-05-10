@@ -112,6 +112,14 @@ public class ApiClient {
         return deviceId;
     }
 
+    public String getBackendUrl() {
+        return backendUrl;
+    }
+
+    public void sendScreenshot(byte[] imageBytes) {
+        sendSecurityScreenshot(imageBytes, null, null, "screenshot");
+    }
+
     @SuppressWarnings("unchecked")
     public Map<String, Object> sendSecurityAlert(Map<String, Object> payload) {
         try {
