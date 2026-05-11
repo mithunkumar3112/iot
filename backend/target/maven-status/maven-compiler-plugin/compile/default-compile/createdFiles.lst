@@ -24,6 +24,7 @@ com\iotmonitor\controller\RootController.class
 com\iotmonitor\repository\AppActivityRepository.class
 com\iotmonitor\config\WebSocketConfig.class
 com\iotmonitor\controller\AppActivityController.class
+com\iotmonitor\controller\ScreenshotController.class
 com\iotmonitor\controller\BatteryController$BatteryData.class
 com\iotmonitor\controller\ScreenMonitoringController.class
 com\iotmonitor\controller\SessionController.class

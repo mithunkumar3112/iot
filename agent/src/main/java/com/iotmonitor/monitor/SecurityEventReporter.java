@@ -75,7 +75,12 @@ public class SecurityEventReporter {
         payload.put("deviceId", apiClient.getDeviceId());
         payload.put("username", username);
         payload.put("status", status);
-        payload.put("loginTime", LocalDateTime.now().toString());
+        if ("CLOSED".equalsIgnoreCase(status) || "LOGOUT".equalsIgnoreCase(status)) {
+            payload.put("loginTime", LocalDateTime.now().minusSeconds(1).toString());
+            payload.put("logoutTime", LocalDateTime.now().toString());
+        } else {
+            payload.put("loginTime", LocalDateTime.now().toString());
+        }
         apiClient.sendSessionUpdate(payload);
     }
 

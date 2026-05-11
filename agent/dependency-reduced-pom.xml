@@ -20,7 +20,7 @@
         <artifactId>exec-maven-plugin</artifactId>
         <version>3.1.0</version>
         <configuration>
-          <mainClass>com.iotmonitor.agent.Laptopagentapplication</mainClass>
+          <mainClass>com.iotmonitor.agent.App</mainClass>
         </configuration>
       </plugin>
       <plugin>

@@ -127,7 +127,7 @@ public class UdpDiscoveryServer {
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
-            return "127.0.0.1";
+            return "";
         }
     }
 }

@@ -28,7 +28,7 @@ public class AlertService {
         return alertRepository.save(new Alert(deviceId, type, message, severity));
     }
 
-    public void checkAndCreateAlerts(String deviceId, double cpu, double ram, double processCpu) {
+    public void checkAndCreateAlerts(String deviceId, double cpu, double ram, double processCpu, long uptime, double battery) {
         if (cpu > 80) {
             createAlert(deviceId, "CPU", "High CPU usage: " + cpu + "%", "HIGH");
         }
@@ -37,6 +37,12 @@ public class AlertService {
         }
         if (processCpu > 80) {
             createAlert(deviceId, "PROCESS", "High process CPU: " + processCpu + "%", "MEDIUM");
+        }
+        if (uptime < 300) { // Less than 5 minutes
+            createAlert(deviceId, "UPTIME", "Device restarted recently: " + uptime + " seconds uptime", "MEDIUM");
+        }
+        if (battery < 20) {
+            createAlert(deviceId, "BATTERY", "Low battery: " + battery + "%", "HIGH");
         }
     }
 }

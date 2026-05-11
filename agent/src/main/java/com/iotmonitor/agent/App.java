@@ -30,15 +30,27 @@ public class App {
 
         try (FileInputStream fis = new FileInputStream(configFile)) {
             prop.load(fis);
+            System.out.println("[agent] Loaded config file: " + configFile);
         } catch (Exception e) {
-            System.err.println("⚠️ Could not load config file: " + configFile + " - falling back to defaults");
+            System.err.println("[agent] Could not load config file: " + configFile + " - falling back to environment variables");
         }
 
-        String renderBackendUrl = firstNonBlank(
+        String backendUrl = firstNonBlank(
+                System.getenv("AGENT_BACKEND_URL"),
+                prop.getProperty("AGENT_BACKEND_URL"),
+                System.getenv("BACKEND_URL"),
+                prop.getProperty("BACKEND_URL"),
                 System.getenv("RENDER_BACKEND_URL"),
-                prop.getProperty("RENDER_BACKEND_URL"),
-                "http://localhost:5000"
+                prop.getProperty("RENDER_BACKEND_URL")
         );
+
+        if (backendUrl.isBlank()) {
+            System.err.println("[agent] Backend URL is not configured. Set AGENT_BACKEND_URL or RENDER_BACKEND_URL to your Render backend URL.");
+            return;
+        }
+        if (backendUrl.contains("localhost") || backendUrl.contains("127.0.0.1")) {
+            System.err.println("[agent] Warning: backend URL points to localhost. Cloud dashboards need the deployed Render URL.");
+        }
 
         String fileSyncDir = firstNonBlank(
                 System.getenv("FILE_SYNC_DIR"),
@@ -46,95 +58,102 @@ public class App {
                 ""
         );
 
-        // Initialize API client
-        ApiClient apiClient = new ApiClient(renderBackendUrl);
+        ApiClient apiClient = new ApiClient(backendUrl);
 
-        System.out.println("🚀 Laptop Monitoring Agent starting...");
-        System.out.println("🖥 Device ID: " + apiClient.getDeviceId());
-        System.out.println("🔗 Backend: " + renderBackendUrl);
+        System.out.println("[agent] Laptop Monitoring Agent starting");
+        System.out.println("[agent] Device ID: " + apiClient.getDeviceId());
+        System.out.println("[agent] Backend: " + apiClient.getBackendUrl());
 
-        // 📂 Start File Sync Service when configured
         FileSyncService syncService = null;
         if (!fileSyncDir.isBlank()) {
             Path syncPath = Paths.get(fileSyncDir);
             if (Files.exists(syncPath) && Files.isDirectory(syncPath)) {
                 syncService = new FileSyncService(apiClient, fileSyncDir);
                 syncService.startSync();
-                System.out.println("🟢 Sync service is active. Monitoring " + fileSyncDir);
+                System.out.println("[agent] FileSyncService started. Monitoring " + fileSyncDir);
             } else {
-                System.err.println("⚠️ FILE_SYNC_DIR configured but does not exist or is not a directory: " + fileSyncDir);
+                System.err.println("[agent] FILE_SYNC_DIR configured but does not exist or is not a directory: " + fileSyncDir);
             }
         } else {
-            System.out.println("ℹ️ File sync is disabled because FILE_SYNC_DIR is not configured.");
+            System.out.println("[agent] FileSyncService disabled because FILE_SYNC_DIR is not configured.");
         }
 
-        // 📈 Start Performance + Screen + Process + App monitoring
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(10);
 
         SystemMonitor systemMonitor = new SystemMonitor(apiClient);
-        scheduler.scheduleAtFixedRate(systemMonitor::collectAndSendMetrics, 0, 5, TimeUnit.SECONDS);
-        System.out.println("✅ SystemMonitor initialized and scheduled");
+        scheduler.scheduleAtFixedRate(safeTask("SystemMonitor", systemMonitor::collectAndSendMetrics), 0, 5, TimeUnit.SECONDS);
+        System.out.println("[agent] SystemMonitor initialized and scheduled");
 
         ProcessMonitor processMonitor = new ProcessMonitor(apiClient);
-        scheduler.scheduleAtFixedRate(processMonitor::collectAndSendProcesses, 0, 10, TimeUnit.SECONDS);
-        System.out.println("✅ ProcessMonitor initialized and scheduled");
+        scheduler.scheduleAtFixedRate(safeTask("ProcessMonitor", processMonitor::collectAndSendProcesses), 0, 10, TimeUnit.SECONDS);
+        System.out.println("[agent] ProcessMonitor initialized and scheduled");
 
-        // 📱 Start App Activity Tracking
         AppMonitor appMonitor = new AppMonitor(apiClient);
-        scheduler.scheduleAtFixedRate(appMonitor::collectAndTrackApps, 0, 5, TimeUnit.SECONDS);
-        System.out.println("✅ AppMonitor initialized and scheduled");
+        scheduler.scheduleAtFixedRate(safeTask("AppMonitor", appMonitor::collectAndTrackApps), 0, 5, TimeUnit.SECONDS);
+        System.out.println("[agent] AppMonitor initialized and scheduled");
 
-        // NEW code: foreground-window tracking for activity timeline
         ActiveWindowMonitor activeWindowMonitor = new ActiveWindowMonitor(apiClient);
-        scheduler.scheduleAtFixedRate(activeWindowMonitor::collectAndSendActivity, 0, 2, TimeUnit.SECONDS);
-        System.out.println("✅ ActiveWindowMonitor initialized and scheduled");
+        scheduler.scheduleAtFixedRate(safeTask("ActiveWindowMonitor", activeWindowMonitor::collectAndSendActivity), 0, 2, TimeUnit.SECONDS);
+        System.out.println("[agent] ActiveWindowMonitor initialized and scheduled");
 
-        // 🔋 Start Battery Monitoring
         BatteryMonitor batteryMonitor = new BatteryMonitor(apiClient);
-        scheduler.scheduleAtFixedRate(batteryMonitor::collectAndSendBatteryData, 0, 5, TimeUnit.SECONDS);
-        System.out.println("✅ BatteryMonitor initialized and scheduled");
+        scheduler.scheduleAtFixedRate(safeTask("BatteryMonitor", batteryMonitor::collectAndSendBatteryData), 0, 5, TimeUnit.SECONDS);
+        System.out.println("[agent] BatteryMonitor initialized and scheduled");
 
         ClipboardMonitor clipboardMonitor = new ClipboardMonitor(apiClient);
-        scheduler.scheduleAtFixedRate(clipboardMonitor::collectAndSend, 0, 1, TimeUnit.SECONDS);
-        System.out.println("✅ ClipboardMonitor initialized and scheduled");
+        scheduler.scheduleAtFixedRate(safeTask("ClipboardMonitor", clipboardMonitor::collectAndSend), 0, 1, TimeUnit.SECONDS);
+        System.out.println("[agent] ClipboardMonitor initialized and scheduled");
 
         SecurityEventReporter securityReporter = new SecurityEventReporter(apiClient);
         LoginSessionMonitor loginSessionMonitor = new LoginSessionMonitor(securityReporter);
         loginSessionMonitor.reportStartupSession();
-        scheduler.scheduleAtFixedRate(loginSessionMonitor::scanFailedLogins, 15, 30, TimeUnit.SECONDS);
-        System.out.println("✅ LoginSessionMonitor initialized and scheduled");
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            System.out.println("[agent] Shutdown detected; reporting closed session");
+            securityReporter.reportSession(System.getProperty("user.name", "unknown"), "CLOSED");
+        }, "session-shutdown-reporter"));
+        scheduler.scheduleAtFixedRate(safeTask("LoginSessionMonitor", loginSessionMonitor::scanFailedLogins), 15, 30, TimeUnit.SECONDS);
+        System.out.println("[agent] LoginSessionMonitor initialized and scheduled");
 
         UsbMonitor usbMonitor = new UsbMonitor(securityReporter);
-        scheduler.scheduleAtFixedRate(usbMonitor::scanAndReportChanges, 5, 5, TimeUnit.SECONDS);
-        System.out.println("✅ UsbMonitor initialized and scheduled");
+        scheduler.scheduleAtFixedRate(safeTask("UsbMonitor", usbMonitor::scanAndReportChanges), 5, 5, TimeUnit.SECONDS);
+        System.out.println("[agent] UsbMonitor initialized and scheduled");
 
         ScreenshotActivityMonitor screenshotActivityMonitor = new ScreenshotActivityMonitor(securityReporter);
-        scheduler.scheduleAtFixedRate(screenshotActivityMonitor::scanAndReport, 3, 2, TimeUnit.SECONDS);
-        System.out.println("✅ ScreenshotActivityMonitor initialized and scheduled");
+        scheduler.scheduleAtFixedRate(safeTask("ScreenshotActivityMonitor", screenshotActivityMonitor::scanAndReport), 3, 2, TimeUnit.SECONDS);
+        System.out.println("[agent] ScreenshotActivityMonitor initialized and scheduled");
 
-        // Add ScreenshotService for periodic screenshot capture
         ScreenshotService screenshotService = new ScreenshotService(apiClient);
-        scheduler.scheduleAtFixedRate(screenshotService::captureAndSend, 0, 30, TimeUnit.SECONDS);
-        System.out.println("✅ ScreenshotService initialized and scheduled");
+        scheduler.scheduleAtFixedRate(safeTask("ScreenshotService", screenshotService::captureAndSend), 0, 30, TimeUnit.SECONDS);
+        System.out.println("[agent] ScreenshotService initialized and scheduled");
 
         Thread commandThread = new Thread(new CommandPoller(apiClient, syncService, apiClient.getDeviceId(), 5000), "command-poller");
         commandThread.setDaemon(true);
         commandThread.start();
-        System.out.println("✅ CommandPoller thread started");
+        System.out.println("[agent] CommandPoller thread started");
 
-        // Keep the main thread alive
         while (true) {
             try {
-                Thread.sleep(60000); // 1 minute heartbeat
+                Thread.sleep(60000);
             } catch (InterruptedException e) {
                 if (syncService != null) {
                     syncService.stopSync();
                 }
                 scheduler.shutdownNow();
+                Thread.currentThread().interrupt();
                 break;
             }
         }
+    }
 
+    private static Runnable safeTask(String serviceName, Runnable task) {
+        return () -> {
+            try {
+                task.run();
+            } catch (Exception e) {
+                System.err.println("[agent] " + serviceName + " failed: " + e.getMessage());
+                e.printStackTrace(System.err);
+            }
+        };
     }
 
     private static String firstNonBlank(String... values) {

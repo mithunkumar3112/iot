@@ -71,13 +71,29 @@ public class CommandPoller implements Runnable {
     }
 
     private void executeScreenshot(String command) {
-        // ScreenshotService is running automatically, just acknowledge the command
-        System.out.println("📸 TAKE_SCREENSHOT command received - ScreenshotService is capturing automatically");
-        apiClient.postCommandResult(deviceId, command, "SUCCESS");
+        try {
+            System.out.println("[agent] TAKE_SCREENSHOT command received - capturing immediately");
+            byte[] imageBytes = com.iotmonitor.monitor.ScreenshotService.capture();
+            if (imageBytes == null || imageBytes.length == 0) {
+                System.err.println("[agent] TAKE_SCREENSHOT failed: capture returned no image bytes");
+                apiClient.postCommandResult(deviceId, command, "FAILED");
+                return;
+            }
+            apiClient.sendScreenshot(imageBytes);
+            apiClient.postCommandResult(deviceId, command, "SUCCESS");
+        } catch (Exception e) {
+            System.err.println("[agent] TAKE_SCREENSHOT failed: " + e.getMessage());
+            apiClient.postCommandResult(deviceId, command, "FAILED");
+        }
     }
 
     private void executeSyncFiles(String command) {
         try {
+            if (fileSyncService == null) {
+                System.err.println("[agent] SYNC_FILES failed: FILE_SYNC_DIR is not configured");
+                apiClient.postCommandResult(deviceId, command, "FAILED");
+                return;
+            }
             fileSyncService.syncNow();
             apiClient.postCommandResult(deviceId, command, "SUCCESS");
         } catch (Exception e) {

@@ -21,7 +21,7 @@ public class AgentConfig {
     // -----------------------------------------------------------------------
 
     /** Full URL of the Spring Boot backend, e.g. http://192.168.1.10:8080 */
-    @Value("${agent.backend-url:http://localhost:8080}")
+    @Value("${agent.backend-url:}")
     private String backendUrl;
 
     /** Device ID used by the laptop agent when polling commands */

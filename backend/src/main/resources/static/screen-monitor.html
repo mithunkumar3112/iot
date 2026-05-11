@@ -6,7 +6,7 @@
   <title>Screen Monitoring</title>
   <link rel="stylesheet" href="dashboard-shell.css">
   <style>
-    .screen-frame { min-height: 420px; display: grid; place-items: center; background: #020617; border-radius: 18px; border: 1px solid var(--border); overflow: hidden; }
+    .screen-frame { min-height: 420px; display: grid; place-items: center; background: #020617; border-radius: 8px; border: 1px solid var(--border); overflow: hidden; }
     .screen-frame img { max-width: 100%; max-height: 70vh; display: block; }
   </style>
 </head>
@@ -23,7 +23,7 @@
       <div><div class="card-title">Live Screen Preview</div><div class="muted">Latest screenshot from the laptop agent.</div></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;"><button class="btn" id="captureBtn">Capture Now</button><button class="btn secondary" id="autoBtn">Pause Auto</button><button class="btn secondary" id="downloadBtn">Download</button></div>
     </div>
-    <div class="card-pad"><div class="screen-frame" id="screenFrame"><div class="empty-state">Loading screenshot...</div></div></div>
+    <div class="card-pad"><div class="screen-frame" id="screenFrame"><div class="empty-state">Select a device to view screenshots.</div></div></div>
   </div>
 </template>
 <script src="dashboard-shell.js"></script>
@@ -31,90 +31,95 @@
 var content = document.getElementById('pageTemplate').content.cloneNode(true);
 var shell = DashboardShell.init({ active: 'screen', title: 'Screen Monitoring', subtitle: 'Real-time screen capture with command-triggered refresh.', content: content });
 var autoRefresh = true;
-var intervalId;
-var lastUpdate = null;
+var intervalId = null;
+var currentImageUrl = '';
 
 function setStatus(text, online) {
   document.getElementById('screenStatus').textContent = text;
   shell.setStatus(text, online);
 }
+
+function loadDevices() {
+  fetch('/processes/devices')
+    .then(function(r) { return r.ok ? r.json() : []; })
+    .then(function(devices) {
+      shell.setDevices(Array.isArray(devices) ? devices : []);
+      if (!shell.getDevice() && devices && devices.length) DashboardShell.setDevice(devices[0]);
+      loadScreenshot();
+    })
+    .catch(loadScreenshot);
+}
+
+function renderEmpty(message, statusText) {
+  currentImageUrl = '';
+  document.getElementById('screenFrame').innerHTML = '<div class="empty-state">' + DashboardShell.escapeHtml(message) + '</div>';
+  document.getElementById('lastCapture').textContent = '--';
+  setStatus(statusText || 'Waiting', false);
+}
+
 function loadScreenshot() {
   var device = shell.getDevice();
+  document.getElementById('deviceName').textContent = device || '--';
   if (!device) {
-    document.getElementById('screenFrame').innerHTML = '<div class="empty-state">Select a device to view screenshots</div>';
-    setStatus('No Device', false);
+    renderEmpty('Select a device to view screenshots.', 'No Device');
     return;
   }
   fetch('/api/screenshots/latest?deviceId=' + encodeURIComponent(device) + '&t=' + Date.now())
-    .then(function(r) {
-      if (!r.ok) throw new Error('No screenshot available');
-      return r.json();
-    })
+    .then(function(r) { return r.ok ? r.json() : null; })
     .then(function(data) {
-      if (data.imageUrl) {
-        document.getElementById('screenFrame').innerHTML = '<img src="' + data.imageUrl + '" alt="Live screen">';
-        lastUpdate = new Date();
-        document.getElementById('lastCapture').textContent = DashboardShell.formatTime(lastUpdate);
-        document.getElementById('deviceName').textContent = device;
-        setStatus('Online', true);
-      } else {
-        throw new Error('Invalid response');
+      if (!data || !data.imageUrl) {
+        renderEmpty(data && data.message ? data.message : 'No screenshot uploaded yet.', 'Waiting');
+        return;
       }
-    })
-    .catch(function(err) {
-      console.warn('Screenshot load failed:', err.message);
-      document.getElementById('screenFrame').innerHTML = '<div class="empty-state">No screenshot available</div>';
-      document.getElementById('lastCapture').textContent = '--';
-      setStatus('Offline', false);
-    });
-}
+      currentImageUrl = data.imageUrl;
+      document.getElementById('screenFrame').innerHTML = '<img src="' + DashboardShell.escapeHtml(data.imageUrl) + '" alt="Live screen">';
+      document.getElementById('lastCapture').textContent = DashboardShell.formatTime(new Date());
+      setStatus('Online', true);
     })
     .catch(function() {
-      document.getElementById('screenFrame').innerHTML = '<div class="empty-state">No screenshot available. Make sure the agent is running.</div>';
-      setStatus('Offline', false);
+      renderEmpty('Unable to load screenshot. Check agent and Supabase upload logs.', 'Offline');
     });
 }
+
 function captureNow() {
   var device = shell.getDevice();
   if (!device) { DashboardShell.toast('Screen capture', 'Select a device first', 'danger'); return; }
   fetch('/commands/send', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ deviceId: device, command: 'TAKE_SCREENSHOT' }) })
-    .then(function(r) { return r.json(); })
-    .then(function() { DashboardShell.toast('Screen capture', 'Capture command queued', 'success'); setTimeout(loadScreenshot, 1500); })
+    .then(function(r) { if (!r.ok) throw new Error('Command failed'); return r.json(); })
+    .then(function() { DashboardShell.toast('Screen capture', 'Capture command queued', 'success'); setTimeout(loadScreenshot, 1800); })
     .catch(function() { DashboardShell.toast('Screen capture', 'Capture command failed', 'danger'); });
 }
+
 function toggleAuto() {
   autoRefresh = !autoRefresh;
   document.getElementById('autoState').textContent = autoRefresh ? 'ON' : 'OFF';
   document.getElementById('autoBtn').textContent = autoRefresh ? 'Pause Auto' : 'Resume Auto';
   if (autoRefresh) startAuto(); else stopAuto();
 }
-function startAuto() { if (!intervalId) intervalId = setInterval(loadScreenshot, 3000); }
-function stopAuto() { clearInterval(intervalId); intervalId = null; }
+
+function startAuto() { if (!intervalId) intervalId = setInterval(loadScreenshot, 5000); }
+function stopAuto() { if (intervalId) clearInterval(intervalId); intervalId = null; }
+
 document.getElementById('captureBtn').addEventListener('click', captureNow);
 document.getElementById('autoBtn').addEventListener('click', toggleAuto);
 document.getElementById('downloadBtn').addEventListener('click', function() {
-  var device = shell.getDevice();
-  if (!device) { DashboardShell.toast('Download', 'Select a device first', 'danger'); return; }
-  fetch('/api/screenshots/latest?deviceId=' + encodeURIComponent(device))
-    .then(function(r) { if (!r.ok) throw new Error('No screenshot'); return r.json(); })
-    .then(function(data) {
-      if (data.imageUrl) {
-        var a = document.createElement('a');
-        a.href = data.imageUrl;
-        a.download = 'screenshot-' + device + '-' + new Date().toISOString().replace(/[:.]/g, '-') + '.png';
-        a.click();
-      } else {
-        throw new Error('No image URL');
-      }
-    })
-    .catch(function() { DashboardShell.toast('Download', 'Download failed', 'danger'); });
+  if (!currentImageUrl) { DashboardShell.toast('Download', 'No screenshot is available', 'danger'); return; }
+  var a = document.createElement('a');
+  a.href = currentImageUrl;
+  a.download = 'screenshot-' + (shell.getDevice() || 'device') + '.png';
+  a.click();
 });
+
 DashboardShell.connectStomp(['/topic/screenshots'], function(payload) {
-  if (payload.type !== 'SCREENSHOT_UPDATED' || payload.deviceId !== shell.getDevice()) return;
-  console.log('Screenshot updated via WebSocket:', payload);
+  if (!payload || payload.type !== 'SCREENSHOT_UPDATED' || payload.deviceId !== shell.getDevice()) return;
+  currentImageUrl = payload.imageUrl || currentImageUrl;
   loadScreenshot();
   DashboardShell.toast('Screenshot updated', payload.deviceId, 'success');
 });
+window.addEventListener('devicechange', loadScreenshot);
+window.addEventListener('shellrefresh', loadDevices);
+loadDevices();
+startAuto();
 </script>
 </body>
 </html>

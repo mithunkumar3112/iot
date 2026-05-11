@@ -13,9 +13,6 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Optional;
@@ -29,24 +26,24 @@ public class SecurityMonitoringService {
     private final LoginSessionRepository loginSessionRepository;
     private final SecurityScreenshotRepository screenshotRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final SupabaseStorageService supabaseStorageService;
     private final Map<String, Long> cooldowns = new ConcurrentHashMap<>();
 
     @Value("${security.alert.cooldown-ms:30000}")
     private long alertCooldownMs;
 
-    @Value("${app.file.storage-dir:C:/shared-files/screenshots}")
-    private String screenshotDir;
-
     public SecurityMonitoringService(AlertRepository alertRepository,
                                      UsbActivityRepository usbActivityRepository,
                                      LoginSessionRepository loginSessionRepository,
                                      SecurityScreenshotRepository screenshotRepository,
-                                     SimpMessagingTemplate messagingTemplate) {
+                                     SimpMessagingTemplate messagingTemplate,
+                                     SupabaseStorageService supabaseStorageService) {
         this.alertRepository = alertRepository;
         this.usbActivityRepository = usbActivityRepository;
         this.loginSessionRepository = loginSessionRepository;
         this.screenshotRepository = screenshotRepository;
         this.messagingTemplate = messagingTemplate;
+        this.supabaseStorageService = supabaseStorageService;
     }
 
     public Optional<Alert> recordSecurityAlert(Alert incoming) {
@@ -108,19 +105,14 @@ public class SecurityMonitoringService {
     public SecurityScreenshot saveScreenshot(String deviceId, Long alertId, Long usbActivityId, String eventType, byte[] image) throws IOException {
         String safeDeviceId = clean(deviceId, "unknown-device", 120).replaceAll("[^a-zA-Z0-9._-]", "_");
         String safeEvent = clean(eventType, "security", 60).replaceAll("[^a-zA-Z0-9._-]", "_");
-        Path dir = Paths.get(screenshotDir).resolve("security").resolve(safeDeviceId);
-        Files.createDirectories(dir);
         String fileName = safeEvent + "-" + System.currentTimeMillis() + ".png";
-        Path file = dir.resolve(fileName);
-        Files.write(file, image);
-
-        String url = "/security/screenshots/" + safeDeviceId + "/" + fileName;
+        String url = supabaseStorageService.uploadObject(safeDeviceId, "security/" + fileName, image);
         SecurityScreenshot shot = new SecurityScreenshot();
         shot.setDeviceId(safeDeviceId);
         shot.setAlertId(alertId);
         shot.setUsbActivityId(usbActivityId);
         shot.setEventType(safeEvent);
-        shot.setFilePath(file.toString());
+        shot.setFilePath(url);
         shot.setUrl(url);
         shot.setFileSize(image.length);
         shot.setTimestamp(LocalDateTime.now());

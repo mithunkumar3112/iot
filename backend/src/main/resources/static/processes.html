@@ -103,6 +103,16 @@ function loadProcesses() {
     .then(function(rows) { allProcesses = Array.isArray(rows) ? rows : []; render(); })
     .catch(function() { document.getElementById('processRows').innerHTML = '<tr><td colspan="5"><div class="empty-state">Unable to load processes.</div></td></tr>'; });
 }
+function loadDevices() {
+  fetch('/processes/devices')
+    .then(function(r) { return r.ok ? r.json() : []; })
+    .then(function(devices) {
+      shell.setDevices(Array.isArray(devices) ? devices : []);
+      if (!shell.getDevice() && devices && devices.length) DashboardShell.setDevice(devices[0]);
+      loadProcesses();
+    })
+    .catch(loadProcesses);
+}
 DashboardShell.connectStomp(['/topic/processes'], function(payload) {
   if (!payload || payload.deviceId !== shell.getDevice() || !Array.isArray(payload.processes)) return;
   allProcesses = payload.processes;
@@ -110,8 +120,8 @@ DashboardShell.connectStomp(['/topic/processes'], function(payload) {
 });
 document.getElementById('searchInput').addEventListener('input', render);
 window.addEventListener('devicechange', loadProcesses);
-window.addEventListener('shellrefresh', loadProcesses);
-loadProcesses();
+window.addEventListener('shellrefresh', loadDevices);
+loadDevices();
 </script>
 </body>
 </html>

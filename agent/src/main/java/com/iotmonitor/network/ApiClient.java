@@ -20,7 +20,7 @@ public class ApiClient {
     private final RestTemplate restTemplate;
 
     public ApiClient(String backendUrl) {
-        this.backendUrl = backendUrl;
+        this.backendUrl = backendUrl == null ? "" : backendUrl.replaceAll("/+$", "");
         this.restTemplate = new RestTemplate();
         // Device ID can be configured via AGENT_DEVICE_ID environment variable.
         this.deviceId = System.getenv().getOrDefault("AGENT_DEVICE_ID", "Nandy-pc-66d0");

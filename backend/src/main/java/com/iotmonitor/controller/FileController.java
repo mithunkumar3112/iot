@@ -33,7 +33,7 @@ public class FileController {
 
     private static final Logger logger = LoggerFactory.getLogger(FileController.class);
 
-    @Value("${app.file.paths:C:/Users/Public/Documents,C:/shared-files}")
+    @Value("${app.file.paths:${java.io.tmpdir}/iot-monitor-uploads}")
     private String filePaths;
 
     private List<Path> getRootPaths() {

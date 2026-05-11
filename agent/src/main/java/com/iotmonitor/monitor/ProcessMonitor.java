@@ -39,7 +39,7 @@ public class ProcessMonitor {
             // System Utilities
             "notepad.exe", "calc.exe", "explorer.exe", "mspaint.exe", "snippingtool.exe",
             // Terminals/Command Line
-            "powershell.exe", "cmd.exe", "bash.exe", "zsh.exe", "terminal.exe", "conhost.exe",
+            "powershell.exe", "pwsh.exe", "cmd.exe", "bash.exe", "zsh.exe", "terminal.exe", "windowsterminal.exe",
             // File Management
             "7zfm.exe", "winrar.exe", "filezilla.exe", "putty.exe", "mstsc.exe",
             // Graphics/Design
@@ -181,7 +181,7 @@ public class ProcessMonitor {
 
         if (processUser != null && !processUser.isBlank()) {
             String userLower = processUser.toLowerCase();
-            if (!userLower.equals(currentUser) && !userLower.contains("user") && !userLower.contains("desktop")) {
+            if (!matchesCurrentUser(userLower)) {
                 return false;
             }
         }
@@ -193,6 +193,18 @@ public class ProcessMonitor {
         double memoryMB = process.getResidentSetSize() / (1024.0 * 1024.0);
         double cpu = process.getProcessCpuLoadCumulative() * 100;
         return cpu > 1.0 || memoryMB > 20.0;
+    }
+
+    private boolean matchesCurrentUser(String processUser) {
+        if (currentUser.isBlank() || processUser == null || processUser.isBlank()) {
+            return true;
+        }
+        String user = processUser.toLowerCase();
+        return user.equals(currentUser)
+                || user.endsWith("\\" + currentUser)
+                || user.endsWith("/" + currentUser)
+                || user.contains("users")
+                || user.contains("desktop");
     }
 
     private boolean isBackgroundProcess(String processName) {

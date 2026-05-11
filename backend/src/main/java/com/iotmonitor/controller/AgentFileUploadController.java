@@ -28,8 +28,7 @@ public class AgentFileUploadController {
 
     private static final Logger logger = LoggerFactory.getLogger(AgentFileUploadController.class);
 
-    // Optional local mirror (retain this location for UI legacy behavior / offline access, but main storage is Supabase)
-    private static final Path BASE_UPLOAD_DIR = Paths.get("C:/shared-files");
+    private static final Path BASE_UPLOAD_DIR = Paths.get(System.getProperty("java.io.tmpdir"), "iot-monitor-uploads");
 
     @Autowired
     private FileMetadataRepository fileMetadataRepository;
@@ -71,58 +70,12 @@ public class AgentFileUploadController {
             Map<String, Object> supabaseRow;
 
             if (supabaseStorageService == null) {
-                // Supabase not configured - save locally
-                try {
-                    Path localDir = Paths.get("uploads", effectiveDeviceId);
-                    Files.createDirectories(localDir);
-                    Path localFile = localDir.resolve(safeFilename);
-                    Files.write(localFile, bytes);
-                    supabaseObjectUrl = "local://" + localFile.toString();
-
-                    FileMetadata metadata = new FileMetadata(
-                            safeFilename,
-                            supabaseObjectUrl,
-                            effectiveDeviceId,
-                            LocalDateTime.now(),
-                            bytes.length
-                    );
-                    fileMetadataRepository.save(metadata);
-
-                    Map<String, Object> response = new HashMap<>();
-                    response.put("message", "Supabase not configured, file stored locally");
-                    response.put("fileUrl", supabaseObjectUrl);
-                    response.put("deviceId", effectiveDeviceId);
-                    response.put("fileSize", bytes.length);
-                    response.put("sha256", sha256);
-                    return ResponseEntity.ok(response);
-                } catch (Exception e) {
-                    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                            .body(Map.of("error", "Failed to save file locally: " + e.getMessage()));
-                }
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                        .body(Map.of("error", "Supabase storage service is not configured"));
             }
 
             try {
                 supabaseObjectUrl = supabaseStorageService.uploadObject(effectiveDeviceId, safeFilename, bytes);
-                
-                if (supabaseObjectUrl.startsWith("local://")) {
-                    // Cloud disabled - save metadata locally
-                    FileMetadata metadata = new FileMetadata(
-                            safeFilename,
-                            supabaseObjectUrl,
-                            effectiveDeviceId,
-                            LocalDateTime.now(),
-                            bytes.length
-                    );
-                    fileMetadataRepository.save(metadata);
-
-                    Map<String, Object> response = new HashMap<>();
-                    response.put("message", "Cloud disabled, file stored locally");
-                    response.put("fileUrl", supabaseObjectUrl);
-                    response.put("deviceId", effectiveDeviceId);
-                    response.put("fileSize", bytes.length);
-                    response.put("sha256", sha256);
-                    return ResponseEntity.ok(response);
-                }
                 
                 supabaseRow = supabaseStorageService.persistFileMetadata(
                         safeFilename,
@@ -133,32 +86,9 @@ public class AgentFileUploadController {
                         hashWithSize
                 );
             } catch (Exception e) {
-                logger.warn("Supabase upload or metadata persist failed; falling back to local storage", e);
-                String supabaseError = e.getMessage();
-
-                Path deviceDir = BASE_UPLOAD_DIR.resolve(effectiveDeviceId);
-                if (!Files.exists(deviceDir)) {
-                    Files.createDirectories(deviceDir);
-                }
-                Path dest = deviceDir.resolve(safeFilename).normalize().toAbsolutePath();
-                Files.write(dest, bytes);
-
-                FileMetadata metadata = new FileMetadata(
-                        safeFilename,
-                        dest.toUri().toString(),
-                        effectiveDeviceId,
-                        LocalDateTime.now(),
-                        bytes.length
-                );
-                fileMetadataRepository.save(metadata);
-
-                Map<String, Object> response = new HashMap<>();
-                response.put("message", "File saved locally; Supabase unavailable");
-                response.put("fileUrl", dest.toUri().toString());
-                response.put("deviceId", effectiveDeviceId);
-                response.put("hash", sha256);
-                response.put("error", supabaseError);
-                return ResponseEntity.status(503).body(response);
+                logger.warn("Supabase upload or metadata persist failed", e);
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                        .body(Map.of("error", "Supabase upload failed", "message", e.getMessage()));
             }
 
             String fileUrl = supabaseObjectUrl;

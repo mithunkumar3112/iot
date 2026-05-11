@@ -40,9 +40,11 @@ public class MetricsController {
         messagingTemplate.convertAndSend("/topic/metrics", json);
 
         // Optional logging and alerts
-        if (json.containsKey("cpu") && json.containsKey("ram")) {
+        if (json.containsKey("cpu") && json.containsKey("ram") && json.containsKey("uptime") && json.containsKey("battery")) {
             double cpu = Double.parseDouble(json.get("cpu").toString());
             double ram = Double.parseDouble(json.get("ram").toString());
+            long uptime = Long.parseLong(json.get("uptime").toString());
+            double battery = Double.parseDouble(json.get("battery").toString());
             String deviceId = json.getOrDefault("deviceId", "default").toString();
 
             if (cpu > 80) {
@@ -51,9 +53,15 @@ public class MetricsController {
             if (ram > 80) {
                 System.out.println("⚠ HIGH RAM: " + ram + "%");
             }
+            if (uptime < 300) {
+                System.out.println("⚠ LOW UPTIME: " + uptime + "s");
+            }
+            if (battery < 20) {
+                System.out.println("⚠ LOW BATTERY: " + battery + "%");
+            }
 
             // Check for alerts
-            alertService.checkAndCreateAlerts(deviceId, cpu, ram, 0); // processCpu not in metrics yet
+            alertService.checkAndCreateAlerts(deviceId, cpu, ram, 0, uptime, battery); // processCpu not in metrics yet
         }
     }
 
