@@ -4,6 +4,7 @@ import com.iotmonitor.service.SupabaseStorageService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -18,6 +19,9 @@ public class ScreenshotController {
 
     @Autowired
     private SupabaseStorageService supabaseStorageService;
+
+    @Autowired
+    private SimpMessagingTemplate messagingTemplate;
 
     private static final Map<String, String> latestScreenshotUrls = new ConcurrentHashMap<>();
 
@@ -35,6 +39,16 @@ public class ScreenshotController {
             latestScreenshotUrls.put(deviceId, imageUrl);
 
             System.out.println("Screenshot uploaded for device: " + deviceId + " at " + imageUrl);
+
+            // Send WebSocket event for real-time update
+            Map<String, Object> wsEvent = new HashMap<>();
+            wsEvent.put("type", "SCREENSHOT_UPDATED");
+            wsEvent.put("event", "screenshot_updated");
+            wsEvent.put("deviceId", deviceId);
+            wsEvent.put("imageUrl", imageUrl);
+            wsEvent.put("timestamp", java.time.Instant.now().toString());
+            messagingTemplate.convertAndSend("/topic/screenshots", wsEvent);
+            System.out.println("✅ Screenshot WebSocket sent to /topic/screenshots");
 
             return ResponseEntity.ok(Map.of("message", "Screenshot uploaded", "imageUrl", imageUrl));
         } catch (Exception e) {

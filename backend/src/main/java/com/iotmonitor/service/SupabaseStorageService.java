@@ -66,15 +66,18 @@ public class SupabaseStorageService {
 
     @jakarta.annotation.PostConstruct
     public void init() {
-        if (supabaseEnabled && supabaseUrl != null && !supabaseUrl.isBlank()) {
-            String effectiveBucket = bucket != null && !bucket.isBlank() ? bucket : bucketFallback;
-            String baseUrl = getStorageBaseUrl();
-            logger.info("SupabaseStorageService initialized: supabaseUrl={} bucket={} storageBaseUrl={}",
-                supabaseUrl, effectiveBucket, baseUrl);
-        } else {
-            supabaseEnabled = false; // Disable if not properly configured
-            logger.info("SupabaseStorageService disabled - no configuration provided");
+        String authKey = getSupabaseAuthKey();
+        String effectiveBucket = getEffectiveBucket();
+        if (!supabaseEnabled || supabaseUrl == null || supabaseUrl.isBlank() || authKey == null || authKey.isBlank() || effectiveBucket == null || effectiveBucket.isBlank()) {
+            supabaseEnabled = false;
+            logger.warn("SupabaseStorageService disabled. Configuration invalid or missing: supabaseEnabled={}, supabaseUrl={}, bucket={}, authKeyPresent={}",
+                    supabaseEnabled, supabaseUrl, effectiveBucket, authKey != null && !authKey.isBlank());
+            return;
         }
+
+        String baseUrl = getStorageBaseUrl();
+        logger.info("SupabaseStorageService initialized: supabaseUrl={} bucket={} storageBaseUrl={}",
+                supabaseUrl, effectiveBucket, baseUrl);
     }
 
     private String getSupabaseAuthKey() {
@@ -85,8 +88,11 @@ public class SupabaseStorageService {
     }
 
     private HttpHeaders authHeaders() {
-        HttpHeaders headers = new HttpHeaders();
         String keyToUse = getSupabaseAuthKey();
+        if (keyToUse == null || keyToUse.isBlank()) {
+            throw new IllegalStateException("Supabase API key is not configured");
+        }
+        HttpHeaders headers = new HttpHeaders();
         headers.set("apikey", keyToUse);
         headers.set("Authorization", "Bearer " + keyToUse);
         return headers;
@@ -94,6 +100,16 @@ public class SupabaseStorageService {
 
     private HttpHeaders storageAuthHeaders() {
         return authHeaders();
+    }
+
+    private String getEffectiveBucket() {
+        if (bucket != null && !bucket.isBlank()) {
+            return bucket;
+        }
+        if (bucketFallback != null && !bucketFallback.isBlank()) {
+            return bucketFallback;
+        }
+        return "files";
     }
 
     private String getStorageBaseUrl() {
@@ -188,8 +204,9 @@ public class SupabaseStorageService {
     }
 
     public String createSignedUrl(String deviceId, String safeFilename, int expiresInSeconds) {
+        String effectiveBucket = getEffectiveBucket();
         String objectPath = String.format("%s/%s", deviceId, safeFilename);
-        String url = String.format("%s/storage/v1/object/sign/%s/%s", supabaseUrl, bucket, objectPath);
+        String url = String.format("%s/storage/v1/object/sign/%s/%s", supabaseUrl, effectiveBucket, objectPath);
 
         HttpHeaders headers = authHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);

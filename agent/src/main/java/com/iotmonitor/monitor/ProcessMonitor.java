@@ -20,6 +20,7 @@ public class ProcessMonitor {
     private final Map<Integer, OSProcess> lastProcessMap = new HashMap<>();
 
     private static final int MAX_PROCESSES = 80;
+    private final String currentUser = System.getProperty("user.name", "").toLowerCase();
 
     // Expanded list of user applications
     private static final Set<String> VISIBLE_APP_NAMES = Set.of(
@@ -109,9 +110,10 @@ public class ProcessMonitor {
             if (pid == 0 || pid < 0) continue;
 
             String processName = process.getName();
+            String processUser = process.getUser();
 
-            // Only report user-facing apps/tools.
-            if (!isVisibleAppProcess(processName) || isBackgroundProcess(processName)) continue;
+            // Only report user-facing apps/tools or active user processes.
+            if (!shouldReportProcess(processName, processUser, process)) continue;
 
             // Calculate CPU usage
             double cpuPercent = 0.0;
@@ -165,6 +167,32 @@ public class ProcessMonitor {
         ));
 
         System.out.println("✅ Processes sent successfully");
+    }
+
+    private boolean shouldReportProcess(String processName, String processUser, OSProcess process) {
+        if (processName == null || processName.isBlank()) {
+            return false;
+        }
+        String lowerName = processName.toLowerCase();
+
+        if (isBackgroundProcess(lowerName)) {
+            return false;
+        }
+
+        if (processUser != null && !processUser.isBlank()) {
+            String userLower = processUser.toLowerCase();
+            if (!userLower.equals(currentUser) && !userLower.contains("user") && !userLower.contains("desktop")) {
+                return false;
+            }
+        }
+
+        if (isVisibleAppProcess(lowerName)) {
+            return true;
+        }
+
+        double memoryMB = process.getResidentSetSize() / (1024.0 * 1024.0);
+        double cpu = process.getProcessCpuLoadCumulative() * 100;
+        return cpu > 1.0 || memoryMB > 20.0;
     }
 
     private boolean isBackgroundProcess(String processName) {

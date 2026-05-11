@@ -109,10 +109,12 @@ document.getElementById('downloadBtn').addEventListener('click', function() {
     })
     .catch(function() { DashboardShell.toast('Download', 'Download failed', 'danger'); });
 });
-window.addEventListener('shellrefresh', loadScreenshot);
-window.addEventListener('devicechange', function(){ document.getElementById('deviceName').textContent = shell.getDevice() || 'All'; });
-loadScreenshot();
-startAuto();
+DashboardShell.connectStomp(['/topic/screenshots'], function(payload) {
+  if (payload.type !== 'SCREENSHOT_UPDATED' || payload.deviceId !== shell.getDevice()) return;
+  console.log('Screenshot updated via WebSocket:', payload);
+  loadScreenshot();
+  DashboardShell.toast('Screenshot updated', payload.deviceId, 'success');
+});
 </script>
 </body>
 </html>

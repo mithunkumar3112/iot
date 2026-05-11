@@ -20,6 +20,7 @@ com\iotmonitor\config\AgentConfig.class
 com\iotmonitor\monitor\ScreenMonitor.class
 com\iotmonitor\monitor\ActiveWindowMonitor.class
 com\iotmonitor\agent\Laptopagentapplication.class
+com\iotmonitor\network\ApiClient$1.class
 com\iotmonitor\monitor\SecurityEventReporter.class
 com\iotmonitor\service\AuthService.class
 com\iotmonitor\monitor\ProcessMonitor$ProcessGroup.class

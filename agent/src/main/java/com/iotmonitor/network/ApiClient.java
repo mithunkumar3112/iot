@@ -1,5 +1,6 @@
 package com.iotmonitor.network;
 
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.*;
 import org.springframework.util.LinkedMultiValueMap;
@@ -117,7 +118,32 @@ public class ApiClient {
     }
 
     public void sendScreenshot(byte[] imageBytes) {
-        sendSecurityScreenshot(imageBytes, null, null, "screenshot");
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+            body.add("file", new ByteArrayResource(imageBytes) {
+                @Override
+                public String getFilename() {
+                    return "screenshot.png";
+                }
+            });
+            body.add("deviceId", deviceId);
+
+            HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+
+            ResponseEntity<String> response = restTemplate.postForEntity(backendUrl + "/api/screenshots/upload", requestEntity, String.class);
+
+            if (response.getStatusCode().is2xxSuccessful()) {
+                System.out.println("✅ Screenshot uploaded successfully to " + backendUrl + "/api/screenshots/upload");
+            } else {
+                System.err.println("❌ Failed to upload screenshot (HTTP " + response.getStatusCode().value() + ") to " + backendUrl + "/api/screenshots/upload");
+            }
+
+        } catch (Exception e) {
+            System.err.println("⚠️ Error uploading screenshot: " + e.getMessage());
+        }
     }
 
     @SuppressWarnings("unchecked")

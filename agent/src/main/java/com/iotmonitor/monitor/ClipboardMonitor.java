@@ -2,6 +2,7 @@ package com.iotmonitor.monitor;
 
 import com.iotmonitor.network.ApiClient;
 
+import java.awt.GraphicsEnvironment;
 import java.awt.Toolkit;
 import java.awt.Image;
 import java.awt.datatransfer.Clipboard;
@@ -23,6 +24,11 @@ public class ClipboardMonitor {
     }
 
     public void collectAndSend() {
+        if (GraphicsEnvironment.isHeadless()) {
+            System.out.println("⚠️ Clipboard monitor skipped: headless environment detected");
+            return;
+        }
+
         try {
             System.out.println("\n=== 📋 CLIPBOARD MONITOR CHECK ===");
             ClipboardData data = readClipboard();
