@@ -1,0 +1,149 @@
+[INFO] Error stacktraces are turned on.
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] -----------------------< com.iotmonitor:backend >-----------------------
+[INFO] Building IoT Monitor Backend 1.0.0
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- clean:3.3.2:clean (default-clean) @ backend ---
+[INFO] Deleting C:\Users\Nandy\Mithun1\iot-monitor - Copy\backend\target
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ backend ---
+[INFO] Copying 1 resource from src\main\resources to target\classes
+[INFO] Copying 21 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ backend ---
+[INFO] Recompiling the module because of changed source code.
+[INFO] Compiling 57 source files with javac [debug parameters release 17] to target\classes
+[INFO] -------------------------------------------------------------
+[ERROR] COMPILATION ERROR : 
+[INFO] -------------------------------------------------------------
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[74,9] illegal start of type
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[74,18] <identifier> expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[74,36] <identifier> expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[77,9] illegal start of type
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[79,11] illegal start of type
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[79,41] ';' expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[84,13] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[87,9] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[90,9] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[93,9] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[95,9] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[99,12] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[99,57] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[101,5] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[104,12] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[104,81] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[105,81] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[106,84] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[108,9] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[110,9] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[112,9] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[113,5] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[116,12] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[116,64] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[118,5] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[125,12] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[127,9] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[128,5] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[133,9] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[135,5] class, interface, enum, or record expected
+[INFO] 30 errors 
+[INFO] -------------------------------------------------------------
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  4.385 s
+[INFO] Finished at: 2026-05-11T10:38:58+05:30
+[INFO] ------------------------------------------------------------------------
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.13.0:compile (default-compile) on project backend: Compilation failure: Compilation failure: 
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[74,9] illegal start of type
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[74,18] <identifier> expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[74,36] <identifier> expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[77,9] illegal start of type
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[79,11] illegal start of type
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[79,41] ';' expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[84,13] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[87,9] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[90,9] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[93,9] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[95,9] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[99,12] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[99,57] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[101,5] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[104,12] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[104,81] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[105,81] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[106,84] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[108,9] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[110,9] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[112,9] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[113,5] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[116,12] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[116,64] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[118,5] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[125,12] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[127,9] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[128,5] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[133,9] class, interface, enum, or record expected
+[ERROR] /C:/Users/Nandy/Mithun1/iot-monitor - Copy/backend/src/main/java/com/iotmonitor/controller/ProcessController.java:[135,5] class, interface, enum, or record expected
+[ERROR] -> [Help 1]
+org.apache.maven.lifecycle.LifecycleExecutionException: Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.13.0:compile (default-compile) on project backend: Compilation failure
+    at org.apache.maven.lifecycle.internal.MojoExecutor.doExecute2 (MojoExecutor.java:333)
+    at org.apache.maven.lifecycle.internal.MojoExecutor.doExecute (MojoExecutor.java:316)
+    at org.apache.maven.lifecycle.internal.MojoExecutor.execute (MojoExecutor.java:212)
+    at org.apache.maven.lifecycle.internal.MojoExecutor.execute (MojoExecutor.java:174)
+    at org.apache.maven.lifecycle.internal.MojoExecutor.access$000 (MojoExecutor.java:75)
+    at org.apache.maven.lifecycle.internal.MojoExecutor$1.run (MojoExecutor.java:162)
+    at org.apache.maven.plugin.DefaultMojosExecutionStrategy.execute (DefaultMojosExecutionStrategy.java:39)
+    at org.apache.maven.lifecycle.internal.MojoExecutor.execute (MojoExecutor.java:159)
+    at org.apache.maven.lifecycle.internal.LifecycleModuleBuilder.buildProject (LifecycleModuleBuilder.java:105)
+    at org.apache.maven.lifecycle.internal.LifecycleModuleBuilder.buildProject (LifecycleModuleBuilder.java:73)
+    at org.apache.maven.lifecycle.internal.builder.singlethreaded.SingleThreadedBuilder.build (SingleThreadedBuilder.java:53)
+    at org.apache.maven.lifecycle.internal.LifecycleStarter.execute (LifecycleStarter.java:118)
+    at org.apache.maven.DefaultMaven.doExecute (DefaultMaven.java:261)
+    at org.apache.maven.DefaultMaven.doExecute (DefaultMaven.java:173)
+    at org.apache.maven.DefaultMaven.execute (DefaultMaven.java:101)
+    at org.apache.maven.cli.MavenCli.execute (MavenCli.java:906)
+    at org.apache.maven.cli.MavenCli.doMain (MavenCli.java:283)
+    at org.apache.maven.cli.MavenCli.main (MavenCli.java:206)
+    at jdk.internal.reflect.DirectMethodHandleAccessor.invoke (DirectMethodHandleAccessor.java:103)
+    at java.lang.reflect.Method.invoke (Method.java:580)
+    at org.codehaus.plexus.classworlds.launcher.Launcher.launchEnhanced (Launcher.java:255)
+    at org.codehaus.plexus.classworlds.launcher.Launcher.launch (Launcher.java:201)
+    at org.codehaus.plexus.classworlds.launcher.Launcher.mainWithExitCode (Launcher.java:361)
+    at org.codehaus.plexus.classworlds.launcher.Launcher.main (Launcher.java:314)
+Caused by: org.apache.maven.plugin.compiler.CompilationFailureException: Compilation failure
+    at org.apache.maven.plugin.compiler.AbstractCompilerMojo.execute (AbstractCompilerMojo.java:1309)
+    at org.apache.maven.plugin.compiler.CompilerMojo.execute (CompilerMojo.java:215)
+    at org.apache.maven.plugin.DefaultBuildPluginManager.executeMojo (DefaultBuildPluginManager.java:126)
+    at org.apache.maven.lifecycle.internal.MojoExecutor.doExecute2 (MojoExecutor.java:328)
+    at org.apache.maven.lifecycle.internal.MojoExecutor.doExecute (MojoExecutor.java:316)
+    at org.apache.maven.lifecycle.internal.MojoExecutor.execute (MojoExecutor.java:212)
+    at org.apache.maven.lifecycle.internal.MojoExecutor.execute (MojoExecutor.java:174)
+    at org.apache.maven.lifecycle.internal.MojoExecutor.access$000 (MojoExecutor.java:75)
+    at org.apache.maven.lifecycle.internal.MojoExecutor$1.run (MojoExecutor.java:162)
+    at org.apache.maven.plugin.DefaultMojosExecutionStrategy.execute (DefaultMojosExecutionStrategy.java:39)
+    at org.apache.maven.lifecycle.internal.MojoExecutor.execute (MojoExecutor.java:159)
+    at org.apache.maven.lifecycle.internal.LifecycleModuleBuilder.buildProject (LifecycleModuleBuilder.java:105)
+    at org.apache.maven.lifecycle.internal.LifecycleModuleBuilder.buildProject (LifecycleModuleBuilder.java:73)
+    at org.apache.maven.lifecycle.internal.builder.singlethreaded.SingleThreadedBuilder.build (SingleThreadedBuilder.java:53)
+    at org.apache.maven.lifecycle.internal.LifecycleStarter.execute (LifecycleStarter.java:118)
+    at org.apache.maven.DefaultMaven.doExecute (DefaultMaven.java:261)
+    at org.apache.maven.DefaultMaven.doExecute (DefaultMaven.java:173)
+    at org.apache.maven.DefaultMaven.execute (DefaultMaven.java:101)
+    at org.apache.maven.cli.MavenCli.execute (MavenCli.java:906)
+    at org.apache.maven.cli.MavenCli.doMain (MavenCli.java:283)
+    at org.apache.maven.cli.MavenCli.main (MavenCli.java:206)
+    at jdk.internal.reflect.DirectMethodHandleAccessor.invoke (DirectMethodHandleAccessor.java:103)
+    at java.lang.reflect.Method.invoke (Method.java:580)
+    at org.codehaus.plexus.classworlds.launcher.Launcher.launchEnhanced (Launcher.java:255)
+    at org.codehaus.plexus.classworlds.launcher.Launcher.launch (Launcher.java:201)
+    at org.codehaus.plexus.classworlds.launcher.Launcher.mainWithExitCode (Launcher.java:361)
+    at org.codehaus.plexus.classworlds.launcher.Launcher.main (Launcher.java:314)
+[ERROR] 
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException

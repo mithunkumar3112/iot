@@ -70,6 +70,11 @@ public class ProcessController {
             System.out.println("❌ PROCESSES VALIDATION FAILED: deviceId=" + deviceId + ", processes=" + (processes != null));
         }
         System.out.println("=== END PROCESSES ===\n");
+    }
+
+    private double parseDouble(Object value) {
+        if (value == null) {
+            return 0.0;
         }
         if (value instanceof Number) {
             return ((Number) value).doubleValue();
