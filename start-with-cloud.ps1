@@ -6,6 +6,7 @@ Write-Host "Setting up Supabase environment variables..." -ForegroundColor Green
 # Set Supabase credentials
 $env:SUPABASE_URL = "https://oavizsbcurtnsekuwebj.supabase.co"
 $env:SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hdml6c2JjdXJ0bnNla3V3ZWJqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4MTY3NzgsImV4cCI6MjA4OTM5Mjc3OH0.ZF8Nrc8RhgYe-81_WFPmsCjDSxcTPFmn4N4TEgd3AFU"
+$env:SUPABASE_SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hdml6c2JjdXJ0bnNla3V3ZWJqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzgxNjc3OCwiZXhwIjoyMDg5MzkyNzc4fQ.omk7Ydv5FXwhlBBW2Tog5aWEguFm8jegv5HLd_fGJ0g"
 $env:APP_FILE_PATHS = "C:/shared-files"
 
 Write-Host "Environment variables set successfully!" -ForegroundColor Green
