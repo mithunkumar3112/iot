@@ -182,11 +182,6 @@ public class SupabaseStorageService {
             if (ex.getStatusCode().value() == 409) {
                 logger.warn("Supabase file already exists (409 Conflict), treating as success: {}", objectPath);
                 if (publicUrlBase != null && !publicUrlBase.isBlank()) {
-            
-            // Treat 409 Conflict (duplicate file) as success - file already exists in cloud storage
-            if (ex.getStatusCode().value() == 409) {
-                logger.warn("Supabase file already exists (409 Conflict), treating as success: {}", objectPath);
-                if (publicUrlBase != null && !publicUrlBase.isBlank()) {
                     return publicUrlBase.replaceAll("/+$", "") + "/" + objectPath;
                 }
                 return String.format("%s/storage/v1/object/public/%s/%s", supabaseUrl, effectiveBucket, objectPath);
