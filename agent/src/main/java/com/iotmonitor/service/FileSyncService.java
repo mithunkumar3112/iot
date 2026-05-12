@@ -262,7 +262,7 @@ public class FileSyncService {
                     Path relative = root.relativize(absoluteFile);
                     String normalized = relative.toString().replace("\\", "/");
                     normalized = normalized.replaceAll("^/+", "");
-                    normalized = normalized.replaceAll("\.\.", "_");
+                    normalized = normalized.replaceAll("\\.\\.", "_");
 
                     return normalizePathSegment(config.getDeviceId()) + "/" + normalized;
                 }

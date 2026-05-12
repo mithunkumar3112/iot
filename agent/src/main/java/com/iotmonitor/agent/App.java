@@ -66,6 +66,8 @@ public class App {
         String fileSyncDir = firstNonBlank(
                 System.getenv("FILE_SYNC_DIR"),
                 prop.getProperty("FILE_SYNC_DIR"),
+                appProp.getProperty("file.sync.dir"),
+                prop.getProperty("file.sync.dir"),
                 ""
         );
 
