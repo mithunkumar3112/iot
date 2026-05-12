@@ -23,6 +23,7 @@ import java.util.Map;
 public class SupabaseStorageService {
 
     private static final Logger logger = LoggerFactory.getLogger(SupabaseStorageService.class);
+    private static final List<String> FILE_METADATA_TABLES = List.of("files_metadata", "file_metadata");
     private final RestTemplate restTemplate = new RestTemplate();
 
     @Value("${supabase.url:}")
@@ -197,7 +198,7 @@ public class SupabaseStorageService {
         if (publicUrlBase != null && !publicUrlBase.isBlank()) {
             return publicUrlBase.replaceAll("/+$", "") + "/" + objectPath;
         }
-        return String.format("%s/storage/v1/object/public/%s/files/%s", supabaseUrl, effectiveBucket, objectPath);
+        return String.format("%s/storage/v1/object/public/%s/%s", supabaseUrl, effectiveBucket, objectPath);
     }
 
     private String safeObjectPath(String deviceId, String fileName) {
@@ -268,24 +269,34 @@ public class SupabaseStorageService {
             return new ArrayList<>(); // Return empty list when Supabase is disabled
         }
 
-        UriComponentsBuilder uri = UriComponentsBuilder.fromHttpUrl(supabaseUrl + "/rest/v1/file_metadata")
-                .queryParam("select", "*");
+        Exception lastError = null;
+        for (String tableName : FILE_METADATA_TABLES) {
+            try {
+                UriComponentsBuilder uri = UriComponentsBuilder.fromHttpUrl(supabaseUrl + "/rest/v1/" + tableName)
+                        .queryParam("select", "*");
 
-        if (deviceId != null && !deviceId.isBlank()) {
-            uri.queryParam("device_id", "eq." + deviceId);
+                if (deviceId != null && !deviceId.isBlank()) {
+                    uri.queryParam("device_id", "eq." + deviceId);
+                }
+
+                HttpHeaders headers = authHeaders();
+                headers.set("Accept", "application/json");
+
+                HttpEntity<Void> request = new HttpEntity<>(headers);
+                ResponseEntity<List> response = restTemplate.exchange(uri.toUriString(), HttpMethod.GET, request, List.class);
+
+                if (!response.getStatusCode().is2xxSuccessful()) {
+                    throw new IllegalStateException("Supabase metadata fetch failed: " + response.getStatusCode());
+                }
+
+                return response.getBody();
+            } catch (Exception e) {
+                lastError = e;
+                logger.warn("Supabase metadata fetch failed from table {}: {}", tableName, e.getMessage());
+            }
         }
 
-        HttpHeaders headers = authHeaders();
-        headers.set("Accept", "application/json");
-
-        HttpEntity<Void> request = new HttpEntity<>(headers);
-        ResponseEntity<List> response = restTemplate.exchange(uri.toUriString(), HttpMethod.GET, request, List.class);
-
-        if (!response.getStatusCode().is2xxSuccessful()) {
-            throw new IllegalStateException("Supabase metadata fetch failed: " + response.getStatusCode());
-        }
-
-        return response.getBody();
+        throw new IllegalStateException("Supabase metadata fetch failed from all known file metadata tables", lastError);
     }
 
     public List<Map<String, Object>> fetchRecentFiles(int limit) {
@@ -294,22 +305,33 @@ public class SupabaseStorageService {
             return new ArrayList<>(); // Return empty list when Supabase is disabled
         }
 
-        UriComponentsBuilder uri = UriComponentsBuilder.fromHttpUrl(supabaseUrl + "/rest/v1/file_metadata")
-                .queryParam("select", "*")
-                .queryParam("order", "upload_time.desc")
-                .queryParam("limit", limit);
+        Exception lastError = null;
+        for (String tableName : FILE_METADATA_TABLES) {
+            try {
+                String uploadTimeColumn = "files_metadata".equals(tableName) ? "uploaded_at" : "upload_time";
+                UriComponentsBuilder uri = UriComponentsBuilder.fromHttpUrl(supabaseUrl + "/rest/v1/" + tableName)
+                        .queryParam("select", "*")
+                        .queryParam("order", uploadTimeColumn + ".desc")
+                        .queryParam("limit", limit);
 
-        HttpHeaders headers = authHeaders();
-        headers.set("Accept", "application/json");
+                HttpHeaders headers = authHeaders();
+                headers.set("Accept", "application/json");
 
-        HttpEntity<Void> request = new HttpEntity<>(headers);
-        ResponseEntity<List> response = restTemplate.exchange(uri.toUriString(), HttpMethod.GET, request, List.class);
+                HttpEntity<Void> request = new HttpEntity<>(headers);
+                ResponseEntity<List> response = restTemplate.exchange(uri.toUriString(), HttpMethod.GET, request, List.class);
 
-        if (!response.getStatusCode().is2xxSuccessful()) {
-            throw new IllegalStateException("Supabase recent files fetch failed: " + response.getStatusCode());
+                if (!response.getStatusCode().is2xxSuccessful()) {
+                    throw new IllegalStateException("Supabase recent files fetch failed: " + response.getStatusCode());
+                }
+
+                return response.getBody();
+            } catch (Exception e) {
+                lastError = e;
+                logger.warn("Supabase recent files fetch failed from table {}: {}", tableName, e.getMessage());
+            }
         }
 
-        return response.getBody();
+        throw new IllegalStateException("Supabase recent files fetch failed from all known file metadata tables", lastError);
     }
 
     public Map<String, Object> persistFileMetadata(String fileName, String fileUrl, String deviceId, long fileSize, String sha256, String hashWithSize) {
@@ -318,42 +340,52 @@ public class SupabaseStorageService {
             return null; // Return null to indicate metadata not persisted to cloud
         }
 
-        String url = supabaseUrl + "/rest/v1/file_metadata";
+        Exception lastError = null;
+        for (String tableName : FILE_METADATA_TABLES) {
+            String url = supabaseUrl + "/rest/v1/" + tableName;
 
-        HttpHeaders headers = authHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("Prefer", "return=representation");
+            HttpHeaders headers = authHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("Prefer", "return=representation");
 
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("file_name", fileName);
-        payload.put("file_url", fileUrl);
-        payload.put("device_id", deviceId);
-        payload.put("upload_time", Instant.now().toString());
-        payload.put("file_size", fileSize);
-        payload.put("hash", sha256);
-        payload.put("hash_size", hashWithSize);
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("file_name", fileName);
+            payload.put("file_url", fileUrl);
+            payload.put("device_id", deviceId);
+            payload.put("file_size", fileSize);
+            if ("files_metadata".equals(tableName)) {
+                payload.put("storage_path", safeObjectPath(deviceId, fileName));
+                payload.put("uploaded_at", Instant.now().toString());
+            } else {
+                payload.put("upload_time", Instant.now().toString());
+                payload.put("hash", sha256);
+                payload.put("hash_size", hashWithSize);
+            }
 
-        HttpEntity<List<Map<String, Object>>> request = new HttpEntity<>(List.of(payload), headers);
-        try {
-            ResponseEntity<List> response = restTemplate.exchange(url, HttpMethod.POST, request, List.class);
-            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null || response.getBody().isEmpty()) {
-                throw new IllegalStateException("Supabase metadata write failed: " + response.getStatusCode());
+            HttpEntity<List<Map<String, Object>>> request = new HttpEntity<>(List.of(payload), headers);
+            try {
+                ResponseEntity<List> response = restTemplate.exchange(url, HttpMethod.POST, request, List.class);
+                if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null || response.getBody().isEmpty()) {
+                    throw new IllegalStateException("Supabase metadata write failed: " + response.getStatusCode());
+                }
+                return (Map<String, Object>) response.getBody().get(0);
+            } catch (HttpStatusCodeException ex) {
+                lastError = ex;
+                String body = ex.getResponseBodyAsString();
+                logger.warn("Supabase metadata write failed table={} status={} body={}", tableName, ex.getStatusCode(), body);
+                if (ex.getStatusCode() == HttpStatus.NOT_FOUND || body != null && (body.contains("PGRST") || body.contains("column"))) {
+                    continue;
+                }
+                throw new IllegalStateException("Supabase metadata write failed: " + ex.getStatusCode() + " - " + body, ex);
+            } catch (Exception e) {
+                lastError = e;
+                logger.warn("Supabase metadata write failed table={} error={}", tableName, e.getMessage());
             }
-            return (Map<String, Object>) response.getBody().get(0);
-        } catch (HttpStatusCodeException ex) {
-            String body = ex.getResponseBodyAsString();
-            logger.warn("Supabase metadata write failed url={} status={} body={}", url, ex.getStatusCode(), body);
-            // Handle missing table or schema issues gracefully - file upload succeeded, just metadata is unavailable
-            if (ex.getStatusCode() == HttpStatus.NOT_FOUND && body != null && body.contains("file_metadata")) {
-                return null;
-            }
-            // Also handle schema/permission errors gracefully (PGRST204 = column not found, PGRST109 = permission denied, etc.)
-            if (body != null && (body.contains("PGRST") || body.contains("column"))) {
-                logger.warn("Supabase metadata table has schema or permission issues, file upload to storage succeeded though");
-                return null;
-            }
-            throw new IllegalStateException("Supabase metadata write failed: " + ex.getStatusCode() + " - " + body, ex);
         }
+
+        logger.warn("Supabase metadata write failed for all known file metadata tables: {}",
+                lastError == null ? "unknown error" : lastError.getMessage());
+        return null;
     }
 
     public List<Map<String, Object>> fetchProcessLogs(String deviceId, int limit) {

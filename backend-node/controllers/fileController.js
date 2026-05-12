@@ -1,6 +1,7 @@
 const supabase = require('../utils/supabase');
 const fs = require('fs');
 const path = require('path');
+const storageBucket = process.env.SUPABASE_BUCKET_NAME || process.env.SUPABASE_BUCKET || 'files';
 
 exports.uploadFile = async (req, res) => {
   try {
@@ -18,7 +19,7 @@ exports.uploadFile = async (req, res) => {
 
     // 1. Upload to Supabase Storage
     const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('monitor-files')
+      .from(storageBucket)
       .upload(storagePath, req.file.buffer, {
         contentType: req.file.mimetype,
         upsert: true
@@ -31,7 +32,7 @@ exports.uploadFile = async (req, res) => {
 
     // 2. Get Public URL
     const { data: { publicUrl } } = supabase.storage
-      .from('monitor-files')
+      .from(storageBucket)
       .getPublicUrl(storagePath);
 
     // 3. Save Metadata to Supabase DB

@@ -314,7 +314,7 @@ async function loadFiles(){
         const name=document.createElement("span");
         name.innerText=file.file_name || file.name || file;
 
-        const fileUrl = file.file_url || file.fileUrl || file.path || file.url;
+        const fileUrl = file.file_url || file.fileUrl || file.filePath || file.path || file.url;
 
         const openButton=document.createElement("button");
         openButton.innerText="Open";

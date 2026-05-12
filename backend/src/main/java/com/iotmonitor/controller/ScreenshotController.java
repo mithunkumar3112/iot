@@ -65,9 +65,10 @@ public class ScreenshotController {
             Files.write(localFile, imageBytes);
 
             String imageUrl = "/api/screenshots/image?deviceId=" + java.net.URLEncoder.encode(safeDeviceId, java.nio.charset.StandardCharsets.UTF_8);
+            String cloudImageUrl = "";
             if (supabaseStorageService != null && supabaseStorageService.isSupabaseEnabled()) {
                 try {
-                    imageUrl = supabaseStorageService.uploadObject(safeDeviceId, "screenshots/latest.png", imageBytes);
+                    cloudImageUrl = supabaseStorageService.uploadObject(safeDeviceId, "screenshots/latest.png", imageBytes);
                 } catch (Exception e) {
                     logger.warn("Supabase screenshot upload failed; using local screenshot {}", localFile, e);
                 }
@@ -81,11 +82,16 @@ public class ScreenshotController {
             wsEvent.put("event", "screenshot_updated");
             wsEvent.put("deviceId", safeDeviceId);
             wsEvent.put("imageUrl", imageUrl);
+            wsEvent.put("cloudImageUrl", cloudImageUrl);
             wsEvent.put("timestamp", java.time.Instant.now().toString());
             messagingTemplate.convertAndSend("/topic/screenshots", wsEvent);
             logger.info("Screenshot WebSocket sent: topic=/topic/screenshots deviceId={}", safeDeviceId);
 
-            return ResponseEntity.ok(Map.of("message", "Screenshot uploaded", "imageUrl", imageUrl));
+            Map<String, Object> response = new HashMap<>();
+            response.put("message", "Screenshot uploaded");
+            response.put("imageUrl", imageUrl);
+            response.put("cloudImageUrl", cloudImageUrl);
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             logger.error("Screenshot upload failed for deviceId={}: {}", safeDeviceId, e.getMessage(), e);
             return ResponseEntity.internalServerError().body(Map.of("error", "Upload failed", "message", e.getMessage()));
@@ -96,11 +102,11 @@ public class ScreenshotController {
     public ResponseEntity<Map<String, Object>> getLatestScreenshot(@RequestParam(value = "deviceId", defaultValue = "default") String deviceId) {
         String safeDeviceId = deviceId == null || deviceId.isBlank() ? "default" : deviceId.trim();
         String imageUrl = latestScreenshotUrls.get(safeDeviceId);
-        if (imageUrl == null && supabaseStorageService != null && supabaseStorageService.objectExists(safeDeviceId, "screenshots/latest.png")) {
-            imageUrl = supabaseStorageService.publicObjectUrl(safeDeviceId, "screenshots/latest.png");
-        }
         if ((imageUrl == null || imageUrl.isBlank()) && Files.exists(localScreenshotPath(safeDeviceId))) {
             imageUrl = "/api/screenshots/image?deviceId=" + java.net.URLEncoder.encode(safeDeviceId, java.nio.charset.StandardCharsets.UTF_8);
+        }
+        if (imageUrl == null && supabaseStorageService != null && supabaseStorageService.objectExists(safeDeviceId, "screenshots/latest.png")) {
+            imageUrl = supabaseStorageService.publicObjectUrl(safeDeviceId, "screenshots/latest.png");
         }
         if (imageUrl == null || imageUrl.isBlank()) {
             return ResponseEntity.ok(Map.of("imageUrl", "", "message", "No screenshot uploaded yet"));
