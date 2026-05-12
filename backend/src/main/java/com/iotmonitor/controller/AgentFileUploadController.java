@@ -82,17 +82,26 @@ public class AgentFileUploadController {
                 return ResponseEntity.badRequest().body(Map.of("error", "Invalid file name"));
             }
             
+            // Overwrite any existing file with the same name
+            Files.deleteIfExists(localFilePath);
             Files.write(localFilePath, bytes);
-            logger.info("FILE SAVED LOCALLY: path={}", localFilePath);
+            
+            // Build a cloud‑style path (deviceId/fileName) for metadata and UI consistency
+            String fileUrl = "files/" + effectiveDeviceId + "/" + safeFilename;
+            logger.debug("Generated cloud path for metadata: {}", fileUrl);
+            logger.info("FILE SAVED LOCALLY (overwritten if existed): path={}", localFilePath);
 
-            String fileUrl = sanitizePathSegment(effectiveDeviceId) + "\\" + safeFilename;
             Map<String, Object> supabaseRow = null;
 
             if (supabaseStorageService != null && supabaseStorageService.isSupabaseEnabled()) {
                 try {
-                    logger.debug("SUPABASE UPLOAD STARTING: bucket upload for {}/{}", effectiveDeviceId, safeFilename);
+                try {
+                    // Supabase upload returns the public URL; we already have the correct cloud path in fileUrl
                     fileUrl = supabaseStorageService.uploadObject(effectiveDeviceId, safeFilename, bytes);
-                    logger.info("SUPABASE STORAGE SUCCESS: fileUrl={}", fileUrl);
+                    logger.info("Supabase upload succeeded: {}", fileUrl);
+                } catch (Exception supabaseErr) {
+                    logger.warn("SUPABASE UPLOAD FAILED: Falling back to local storage only: {}", supabaseErr.getMessage(), supabaseErr);
+                }
                     
                     try {
                         logger.debug("SUPABASE METADATA PERSIST STARTING: saving metadata to database");

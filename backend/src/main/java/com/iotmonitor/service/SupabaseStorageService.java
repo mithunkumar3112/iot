@@ -156,10 +156,12 @@ public class SupabaseStorageService {
         }
 
         String objectPath = safeObjectPath(deviceId, safeFilename);
-        String url = buildStorageUrl(effectiveBucket, objectPath);
+        // Append upsert query param so Supabase overwrites existing files
+        String url = buildStorageUrl(effectiveBucket, objectPath) + "?upsert=true";
 
         HttpHeaders headers = storageAuthHeaders();
         headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+        // Retain header for backward compatibility; Supabase also accepts ?upsert=true
         headers.set("x-upsert", "true");
 
         HttpEntity<byte[]> request = new HttpEntity<>(bytes, headers);
@@ -194,9 +196,28 @@ public class SupabaseStorageService {
 
         if (publicUrlBase != null && !publicUrlBase.isBlank()) {
             return publicUrlBase.replaceAll("/+$", "") + "/" + objectPath;
+            
+            // Treat 409 Conflict (duplicate file) as success - file already exists in cloud storage
+            if (ex.getStatusCode().value() == 409) {
+                logger.warn("Supabase file already exists (409 Conflict), treating as success: {}", objectPath);
+                if (publicUrlBase != null && !publicUrlBase.isBlank()) {
+                    return publicUrlBase.replaceAll("/+$", "") + "/" + objectPath;
+                }
+                return String.format("%s/storage/v1/object/public/%s/%s", supabaseUrl, effectiveBucket, objectPath);
+            }
+            throw new IllegalStateException("Supabase upload failed: " + ex.getStatusCode() + " - " + body, ex);
         }
 
-        return String.format("%s/storage/v1/object/public/%s/%s", supabaseUrl, effectiveBucket, objectPath);
+        if (!response.getStatusCode().is2xxSuccessful()) {
+            logger.error("Supabase upload returned non-2xx status: {} body={}", response.getStatusCode(), response.getBody());
+            throw new IllegalStateException("Supabase upload failed with status " + response.getStatusCode() + " body=" + response.getBody());
+        }
+
+        if (publicUrlBase != null && !publicUrlBase.isBlank()) {
+            return publicUrlBase.replaceAll("/+$", "") + "/" + objectPath;
+        }
+
+        return String.format("%s/storage/v1/object/public/%s/files/%s", supabaseUrl, effectiveBucket, objectPath);
     }
 
     private String safeObjectPath(String deviceId, String fileName) {
@@ -209,11 +230,6 @@ public class SupabaseStorageService {
             normalizedFileName = normalizedFileName.replace("..", "_");
         }
         return safeDeviceId + "/" + normalizedFileName;
-    }
-
-    @Recover
-    public String recoverUploadObject(Exception e, String deviceId, String safeFilename, byte[] bytes) {
-        throw new RuntimeException("Failed to upload file after retries: " + e.getMessage(), e);
     }
 
     public String createSignedUrl(String deviceId, String safeFilename, int expiresInSeconds) {
