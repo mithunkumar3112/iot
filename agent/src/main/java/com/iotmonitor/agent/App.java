@@ -14,6 +14,7 @@ import com.iotmonitor.monitor.UsbMonitor;
 import com.iotmonitor.network.ApiClient;
 
 import java.io.FileInputStream;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -35,13 +36,23 @@ public class App {
             System.err.println("[agent] Could not load config file: " + configFile + " - falling back to environment variables");
         }
 
+        Properties appProp = new Properties();
+        try (InputStream input = App.class.getClassLoader().getResourceAsStream("application.properties")) {
+            if (input != null) {
+                appProp.load(input);
+            }
+        } catch (Exception e) {
+            System.err.println("[agent] Could not load bundled application.properties: " + e.getMessage());
+        }
+
         String backendUrl = firstNonBlank(
                 System.getenv("AGENT_BACKEND_URL"),
                 prop.getProperty("AGENT_BACKEND_URL"),
                 System.getenv("BACKEND_URL"),
                 prop.getProperty("BACKEND_URL"),
                 System.getenv("RENDER_BACKEND_URL"),
-                prop.getProperty("RENDER_BACKEND_URL")
+                prop.getProperty("RENDER_BACKEND_URL"),
+                appProp.getProperty("agent.backend-url")
         );
 
         if (backendUrl.isBlank()) {

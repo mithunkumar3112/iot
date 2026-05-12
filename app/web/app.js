@@ -1,5 +1,5 @@
 // Laptop Monitor Dashboard Logic
-const RENDER_BACKEND_URL = 'http://localhost:5000'; // Update with your Render URL
+const RENDER_BACKEND_URL = 'https://laptop-monitor-backend.onrender.com';
 
 // DOM Elements
 const deviceIdInput = document.getElementById('device-id-input');
