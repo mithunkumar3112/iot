@@ -45,11 +45,37 @@ function dedupe(files) {
   (Array.isArray(files) ? files : []).forEach(function(file) {
     if (!file || file.isDirectory) return;
     file = normalizeFile(file);
+    if (!isSharedFolderFile(file)) return;
     var key = String(file.path || file.url || file.name || '').toLowerCase();
     var existing = unique[key];
     if (!existing || Number(file.lastModified || 0) >= Number(existing.lastModified || 0)) unique[key] = file;
   });
   return Object.values(unique).sort(function(a, b) { return Number(b.lastModified || 0) - Number(a.lastModified || 0); });
+}
+
+function isSharedFolderFile(file) {
+  var name = String(file.name || '').toLowerCase();
+  var path = String(file.path || '').toLowerCase();
+  var combined = name + ' ' + path;
+  var ext = '';
+  var match = name.match(/\.([^.]+)$/);
+  if (match) ext = match[1];
+  var allowed = { txt: true, pdf: true, ppt: true, pptx: true, jpg: true, jpeg: true, png: true, doc: true, docx: true };
+  if (!allowed[ext]) return false;
+  return [
+    '/screenshots/',
+    'screenshots/latest',
+    'security_screenshots',
+    'security-screenshots',
+    'security/screenshots',
+    'login_screen',
+    'login-screen',
+    'login screenshot',
+    'user_detection',
+    'user-detection',
+    'detection_screen',
+    'detection-screen'
+  ].every(function(marker) { return combined.indexOf(marker) < 0; });
 }
 
 function normalizeFile(file) {

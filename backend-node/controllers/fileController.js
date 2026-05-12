@@ -94,7 +94,7 @@ exports.getFilesByDevice = async (req, res) => {
       .order('uploaded_at', { ascending: false });
 
     if (error) throw error;
-    res.status(200).json(data);
+    res.status(200).json(filterSharedFolderFiles(data || []));
   } catch (err) {
     console.error('[files] Get files exception:', err);
     res.status(500).json({ error: 'Error fetching files for device from cloud', detail: err.message });
@@ -109,7 +109,7 @@ exports.getAllFiles = async (req, res) => {
       .order('uploaded_at', { ascending: false });
 
     if (error) throw error;
-    res.status(200).json(data || []);
+    res.status(200).json(filterSharedFolderFiles(data || []));
   } catch (err) {
     console.error('[files] Get all files exception:', err);
     res.status(500).json({ error: 'Error fetching files from cloud', detail: err.message });
@@ -127,7 +127,7 @@ exports.getRecentFiles = async (req, res) => {
       .limit(limit);
 
     if (error) throw error;
-    res.status(200).json(data || []);
+    res.status(200).json(filterSharedFolderFiles(data || []));
   } catch (err) {
     console.error('[files] Get recent files exception:', err);
     res.status(500).json({ error: 'Error fetching recent files from cloud', detail: err.message });
@@ -156,4 +156,33 @@ function sanitizePathSegment(value) {
 function getExtension(fileName) {
   const ext = path.extname(fileName || '').replace('.', '').toLowerCase();
   return ext || 'unknown';
+}
+
+function filterSharedFolderFiles(rows) {
+  return (Array.isArray(rows) ? rows : []).filter(isSharedFolderFile);
+}
+
+function isSharedFolderFile(row) {
+  const fileName = String(row.file_name || row.fileName || row.name || '').toLowerCase();
+  const storagePath = String(row.storage_path || row.path || '').toLowerCase();
+  const fileType = String(row.file_type || path.extname(fileName).replace('.', '')).toLowerCase();
+  const haystack = `${fileName} ${storagePath}`;
+
+  const allowedTypes = new Set(['txt', 'pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'doc', 'docx']);
+  if (!allowedTypes.has(fileType)) return false;
+
+  return ![
+    '/screenshots/',
+    'screenshots/latest',
+    'security_screenshots',
+    'security-screenshots',
+    'security/screenshots',
+    'login_screen',
+    'login-screen',
+    'login screenshot',
+    'user_detection',
+    'user-detection',
+    'detection_screen',
+    'detection-screen'
+  ].some(marker => haystack.includes(marker));
 }

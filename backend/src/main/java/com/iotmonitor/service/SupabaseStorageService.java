@@ -17,7 +17,9 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class SupabaseStorageService {
@@ -395,7 +397,7 @@ public class SupabaseStorageService {
                     throw new IllegalStateException("Supabase metadata fetch failed: " + response.getStatusCode());
                 }
 
-                return response.getBody();
+                return filterFileExplorerRows(response.getBody());
             } catch (Exception e) {
                 lastError = e;
                 logger.warn("Supabase metadata fetch failed from table {}: {}", tableName, e.getMessage());
@@ -430,7 +432,7 @@ public class SupabaseStorageService {
                     throw new IllegalStateException("Supabase recent files fetch failed: " + response.getStatusCode());
                 }
 
-                return response.getBody();
+                return filterFileExplorerRows(response.getBody());
             } catch (Exception e) {
                 lastError = e;
                 logger.warn("Supabase recent files fetch failed from table {}: {}", tableName, e.getMessage());
@@ -550,6 +552,45 @@ public class SupabaseStorageService {
             return "bin";
         }
         return fileName.substring(dot + 1).toLowerCase();
+    }
+
+    private List<Map<String, Object>> filterFileExplorerRows(List<Map<String, Object>> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return List.of();
+        }
+        return rows.stream()
+                .filter(this::isFileExplorerRow)
+                .toList();
+    }
+
+    private boolean isFileExplorerRow(Map<String, Object> row) {
+        if (row == null) {
+            return false;
+        }
+        String fileName = String.valueOf(row.getOrDefault("file_name", "")).toLowerCase(Locale.ROOT);
+        String storagePath = String.valueOf(row.getOrDefault("storage_path", "")).toLowerCase(Locale.ROOT);
+        String type = String.valueOf(row.getOrDefault("file_type", fileType(fileName))).toLowerCase(Locale.ROOT);
+        String haystack = fileName + " " + storagePath;
+
+        Set<String> allowedTypes = Set.of("txt", "pdf", "ppt", "pptx", "jpg", "jpeg", "png", "doc", "docx");
+        if (!allowedTypes.contains(type)) {
+            return false;
+        }
+
+        return List.of(
+                "/screenshots/",
+                "screenshots/latest",
+                "security_screenshots",
+                "security-screenshots",
+                "security/screenshots",
+                "login_screen",
+                "login-screen",
+                "login screenshot",
+                "user_detection",
+                "user-detection",
+                "detection_screen",
+                "detection-screen"
+        ).stream().noneMatch(haystack::contains);
     }
 
     public List<Map<String, Object>> fetchProcessLogs(String deviceId, int limit) {
