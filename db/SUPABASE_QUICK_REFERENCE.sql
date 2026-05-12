@@ -104,9 +104,9 @@ VALUES
 
 INSERT INTO files_metadata (device_id, file_name, file_url, storage_path, file_size, file_type)
 VALUES 
-  ('device-001', 'report.pdf', 'https://oavizsbcurtnsekuwebj.supabase.co/storage/v1/object/public/monitor-files/device-001/report.pdf', 'device-001/report.pdf', 1024000, 'pdf'),
-  ('device-001', 'data.xlsx', 'https://oavizsbcurtnsekuwebj.supabase.co/storage/v1/object/public/monitor-files/device-001/data.xlsx', 'device-001/data.xlsx', 512000, 'xlsx'),
-  ('device-001', 'presentation.pptx', 'https://oavizsbcurtnsekuwebj.supabase.co/storage/v1/object/public/monitor-files/device-001/presentation.pptx', 'device-001/presentation.pptx', 2048000, 'pptx');
+  ('device-001', 'report.pdf', 'https://oavizsbcurtnsekuwebj.supabase.co/storage/v1/object/public/files/device-001/report.pdf', 'device-001/report.pdf', 1024000, 'pdf'),
+  ('device-001', 'data.xlsx', 'https://oavizsbcurtnsekuwebj.supabase.co/storage/v1/object/public/files/device-001/data.xlsx', 'device-001/data.xlsx', 512000, 'xlsx'),
+  ('device-001', 'presentation.pptx', 'https://oavizsbcurtnsekuwebj.supabase.co/storage/v1/object/public/files/device-001/presentation.pptx', 'device-001/presentation.pptx', 2048000, 'pptx');
 
 -- ============================================================
 -- SECTION 8: VERIFICATION QUERIES
