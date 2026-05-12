@@ -43,11 +43,33 @@ function dedupe(files) {
   var unique = {};
   (Array.isArray(files) ? files : []).forEach(function(file) {
     if (!file || file.isDirectory) return;
-    var key = String(file.path || file.fullPath || file.name || '').toLowerCase();
+    file = normalizeFile(file);
+    var key = String(file.path || file.url || file.name || '').toLowerCase();
     var existing = unique[key];
     if (!existing || Number(file.lastModified || 0) >= Number(existing.lastModified || 0)) unique[key] = file;
   });
   return Object.values(unique).sort(function(a, b) { return Number(b.lastModified || 0) - Number(a.lastModified || 0); });
+}
+function normalizeFile(file) {
+  var name = file.name || file.fileName || file.file_name || 'file';
+  var url = file.url || file.fileUrl || file.file_url || '';
+  var path = file.path || file.fullPath || url || name;
+  var size = file.size || file.fileSize || file.file_size || 0;
+  var modified = file.lastModified || file.uploadTime || file.upload_time || 0;
+  if (typeof modified === 'string') {
+    var parsed = Date.parse(modified);
+    modified = isNaN(parsed) ? 0 : parsed;
+  }
+  return { name: name, path: path, url: url, size: size, lastModified: modified, isDirectory: !!file.isDirectory };
+}
+function fileActions(file) {
+  if (file.url && (/^https?:\/\//i.test(file.url) || file.url.charAt(0) === '/')) {
+    return '<a class="btn secondary" target="_blank" href="' + DashboardShell.escapeHtml(file.url) +
+      '">Preview</a><a class="btn success" href="' + DashboardShell.escapeHtml(file.url) + '">Download</a>';
+  }
+  var encoded = encodeURIComponent(file.path);
+  return '<a class="btn secondary" target="_blank" href="/files/read/' + encoded +
+    '">Preview</a><a class="btn success" href="/files/download/' + encoded + '">Download</a>';
 }
 function renderFiles() {
   var query = String(document.getElementById('searchInput').value || '').toLowerCase();
@@ -62,22 +84,23 @@ function renderFiles() {
     return;
   }
   document.getElementById('fileRows').innerHTML = rows.map(function(file) {
-    var path = file.path || file.fullPath || file.name;
-    var encoded = encodeURIComponent(path);
+    file = normalizeFile(file);
+    var path = file.path || file.name;
     return '<tr><td><div class="row-title">' + DashboardShell.escapeHtml(file.name || path) +
       '</div><div class="row-sub">' + DashboardShell.escapeHtml(path) +
       '</div></td><td>' + formatBytes(file.size) +
       '</td><td>' + (file.lastModified ? DashboardShell.formatDateTime(Number(file.lastModified)) : '--') +
-      '</td><td><div style="display:flex;gap:8px;flex-wrap:wrap;"><a class="btn secondary" target="_blank" href="/files/read/' + encoded +
-      '">Preview</a><a class="btn success" href="/files/download/' + encoded + '">Download</a></div></td></tr>';
+      '</td><td><div style="display:flex;gap:8px;flex-wrap:wrap;">' + fileActions(file) + '</div></td></tr>';
   }).join('');
 }
 function loadFiles() {
   document.getElementById('fileStatus').textContent = 'Syncing';
-  fetch('/files/list', { cache: 'no-store' })
-    .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-    .then(function(files) {
-      allFiles = Array.isArray(files) ? files : [];
+  Promise.all([
+    fetch('/files/list', { cache: 'no-store' }).then(function(r) { return r.ok ? r.json() : []; }).catch(function() { return []; }),
+    fetch('/files/all', { cache: 'no-store' }).then(function(r) { return r.ok ? r.json() : []; }).catch(function() { return []; })
+  ])
+    .then(function(results) {
+      allFiles = [].concat(Array.isArray(results[0]) ? results[0] : [], Array.isArray(results[1]) ? results[1] : []);
       document.getElementById('fileStatus').textContent = 'Ready';
       renderFiles();
     })

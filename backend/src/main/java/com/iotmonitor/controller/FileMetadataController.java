@@ -29,7 +29,7 @@ public class FileMetadataController {
     public ResponseEntity<?> getFilesByDevice(@PathVariable String deviceId) {
         try {
             // Prefer Supabase metadata as source of truth
-            if (supabaseStorageService != null) {
+            if (supabaseStorageService != null && supabaseStorageService.isSupabaseEnabled()) {
                 List<Map<String,Object>> supabaseRows = supabaseStorageService.fetchFileMetadata(deviceId);
                 return ResponseEntity.ok(supabaseRows);
             } else {
@@ -47,7 +47,7 @@ public class FileMetadataController {
     @GetMapping("/all")
     public ResponseEntity<?> getAllFiles() {
         try {
-            if (supabaseStorageService != null) {
+            if (supabaseStorageService != null && supabaseStorageService.isSupabaseEnabled()) {
                 List<Map<String,Object>> supabaseRows = supabaseStorageService.fetchFileMetadata(null);
                 return ResponseEntity.ok(supabaseRows);
             } else {
@@ -64,7 +64,7 @@ public class FileMetadataController {
     @GetMapping("/recent")
     public ResponseEntity<?> getRecentFiles(@RequestParam(defaultValue = "10") int limit) {
         try {
-            if (supabaseStorageService != null) {
+            if (supabaseStorageService != null && supabaseStorageService.isSupabaseEnabled()) {
                 List<Map<String,Object>> supabaseRows = supabaseStorageService.fetchRecentFiles(limit);
                 return ResponseEntity.ok(supabaseRows);
             } else {
@@ -80,7 +80,7 @@ public class FileMetadataController {
 
     @GetMapping("/supabase")
     public ResponseEntity<?> getSupabaseFiles(@RequestParam(value = "deviceId", required = false) String deviceId) {
-        if (supabaseStorageService == null) {
+        if (supabaseStorageService == null || !supabaseStorageService.isSupabaseEnabled()) {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                     .body(Map.of("error", "Supabase storage service is not configured"));
         }

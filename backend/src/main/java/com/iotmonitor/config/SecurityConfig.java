@@ -75,6 +75,7 @@ public class SecurityConfig {
                     "/upload-chunk",
                     "/api/android/**",
                     "/api/files/**",
+                    "/api/screenshots/**",
                     "/api/processes/**",
                     "/api/alerts/**",
                     "/security/**",
@@ -102,6 +103,8 @@ public class SecurityConfig {
                     "/files/read/**",
                     "/files/download/**",
                     "/files/list",
+                    "/files/all",
+                    "/files/recent",
                     "/files/device/**",
                     "/files/supabase"
             ).permitAll()
