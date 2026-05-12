@@ -15,13 +15,13 @@
   </div>
   <div class="card">
     <div class="card-head">
-      <div><div class="card-title">Files</div><div class="muted">Duplicate file paths are removed automatically.</div></div>
+      <div><div class="card-title">Files</div><div class="muted">Synced files from connected devices. Duplicate file paths are removed automatically.</div></div>
       <input class="input" id="searchInput" placeholder="Search files">
     </div>
     <div class="table-wrap">
       <table class="table">
-        <thead><tr><th>Name</th><th>Size</th><th>Modified</th><th>Actions</th></tr></thead>
-        <tbody id="fileRows"><tr><td colspan="4"><div class="empty-state">Loading files...</div></td></tr></tbody>
+        <thead><tr><th>Name</th><th>Device</th><th>Size</th><th>Modified</th><th>Actions</th></tr></thead>
+        <tbody id="fileRows"><tr><td colspan="5"><div class="empty-state">Loading files...</div></td></tr></tbody>
       </table>
     </div>
   </div>
@@ -39,6 +39,7 @@ function formatBytes(bytes) {
   if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB';
   return (bytes / 1024 / 1024 / 1024).toFixed(1) + ' GB';
 }
+
 function dedupe(files) {
   var unique = {};
   (Array.isArray(files) ? files : []).forEach(function(file) {
@@ -50,67 +51,155 @@ function dedupe(files) {
   });
   return Object.values(unique).sort(function(a, b) { return Number(b.lastModified || 0) - Number(a.lastModified || 0); });
 }
+
 function normalizeFile(file) {
   var name = file.name || file.fileName || file.file_name || 'file';
   var url = file.url || file.fileUrl || file.file_url || '';
   var path = file.path || file.fullPath || url || name;
   var size = file.size || file.fileSize || file.file_size || 0;
-  var modified = file.lastModified || file.uploadTime || file.upload_time || 0;
+  var modified = file.lastModified || file.uploadTime || file.upload_time || file.uploaded_at || 0;
+  var deviceId = file.deviceId || file.device_id || file.device || 'unknown';
+  
   if (typeof modified === 'string') {
     var parsed = Date.parse(modified);
     modified = isNaN(parsed) ? 0 : parsed;
   }
-  return { name: name, path: path, url: url, size: size, lastModified: modified, isDirectory: !!file.isDirectory };
+  
+  return { 
+    name: name, 
+    path: path, 
+    url: url, 
+    size: size, 
+    lastModified: modified, 
+    deviceId: deviceId,
+    isDirectory: !!file.isDirectory 
+  };
 }
+
 function fileActions(file) {
-  if (file.url && (/^https?:\/\//i.test(file.url) || file.url.charAt(0) === '/')) {
-    return '<a class="btn secondary" target="_blank" href="' + DashboardShell.escapeHtml(file.url) +
-      '">Preview</a><a class="btn success" href="' + DashboardShell.escapeHtml(file.url) + '">Download</a>';
+  // Ensure file URL is absolute (not localhost or relative paths)
+  var url = file.url || '';
+  
+  // Handle Supabase URLs (start with https://)
+  if (/^https?:\/\//i.test(url)) {
+    return '<a class="btn secondary" target="_blank" href="' + DashboardShell.escapeHtml(url) +
+      '" title="Preview file">Preview</a><a class="btn success" href="' + DashboardShell.escapeHtml(url) + '" download title="Download file">Download</a>';
   }
-  var encoded = encodeURIComponent(file.path);
+  
+  // Handle relative paths through backend
+  if (url.charAt(0) === '/' || (url && !url.includes('http'))) {
+    var encoded = encodeURIComponent(url);
+    return '<a class="btn secondary" target="_blank" href="/files/read/' + encoded +
+      '" title="Preview file">Preview</a><a class="btn success" href="/files/download/' + encoded + '" title="Download file">Download</a>';
+  }
+  
+  // Handle file path from API response
+  var encoded = encodeURIComponent(file.path || url);
   return '<a class="btn secondary" target="_blank" href="/files/read/' + encoded +
-    '">Preview</a><a class="btn success" href="/files/download/' + encoded + '">Download</a>';
+    '" title="Preview file">Preview</a><a class="btn success" href="/files/download/' + encoded + '" title="Download file">Download</a>';
 }
+
 function renderFiles() {
   var query = String(document.getElementById('searchInput').value || '').toLowerCase();
-  var rows = dedupe(allFiles).filter(function(file) {
+  var selectedDevice = shell.getDevice();
+  
+  // Filter by device if one is selected
+  var filtered = allFiles;
+  if (selectedDevice) {
+    filtered = allFiles.filter(function(file) {
+      var fileDevice = file.deviceId || file.device_id || '';
+      return fileDevice === selectedDevice || fileDevice === '' || !fileDevice;
+    });
+  }
+  
+  // Apply search filter
+  var rows = dedupe(filtered).filter(function(file) {
     return !query || String(file.name || file.path || '').toLowerCase().indexOf(query) >= 0;
   });
+  
   var total = rows.reduce(function(sum, file) { return sum + Number(file.size || 0); }, 0);
   document.getElementById('fileCount').textContent = rows.length;
   document.getElementById('fileSize').textContent = formatBytes(total);
+  
   if (!rows.length) {
-    document.getElementById('fileRows').innerHTML = '<tr><td colspan="4"><div class="empty-state">No files found.</div></td></tr>';
+    var message = selectedDevice ? 
+      'No files found for device ' + DashboardShell.escapeHtml(selectedDevice) + '.' :
+      'No files found.';
+    document.getElementById('fileRows').innerHTML = '<tr><td colspan="5"><div class="empty-state">' + message + '</div></td></tr>';
     return;
   }
+  
   document.getElementById('fileRows').innerHTML = rows.map(function(file) {
     file = normalizeFile(file);
     var path = file.path || file.name;
     return '<tr><td><div class="row-title">' + DashboardShell.escapeHtml(file.name || path) +
       '</div><div class="row-sub">' + DashboardShell.escapeHtml(path) +
-      '</div></td><td>' + formatBytes(file.size) +
+      '</div></td><td>' + DashboardShell.escapeHtml(file.deviceId || 'unknown') +
+      '</td><td>' + formatBytes(file.size) +
       '</td><td>' + (file.lastModified ? DashboardShell.formatDateTime(Number(file.lastModified)) : '--') +
       '</td><td><div style="display:flex;gap:8px;flex-wrap:wrap;">' + fileActions(file) + '</div></td></tr>';
   }).join('');
 }
+
 function loadFiles() {
   document.getElementById('fileStatus').textContent = 'Syncing';
-  Promise.all([
-    fetch('/files/list', { cache: 'no-store' }).then(function(r) { return r.ok ? r.json() : []; }).catch(function() { return []; }),
-    fetch('/files/all', { cache: 'no-store' }).then(function(r) { return r.ok ? r.json() : []; }).catch(function() { return []; })
-  ])
+  var selectedDevice = shell.getDevice();
+  
+  // Build API calls based on selected device
+  var apiCalls = [];
+  
+  if (selectedDevice) {
+    // If device is selected, fetch files for that specific device
+    console.log('Loading files for device:', selectedDevice);
+    apiCalls.push(
+      fetch('/files/device/' + encodeURIComponent(selectedDevice), { cache: 'no-store' })
+        .then(function(r) { 
+          console.log('Device-specific file fetch status:', r.status);
+          return r.ok ? r.json() : []; 
+        })
+        .catch(function(err) { 
+          console.error('Device-specific file fetch error:', err);
+          return []; 
+        })
+    );
+  } else {
+    // If no device selected, fetch all files
+    console.log('Loading all files');
+    apiCalls.push(
+      fetch('/files/all', { cache: 'no-store' })
+        .then(function(r) { 
+          console.log('All files fetch status:', r.status);
+          return r.ok ? r.json() : []; 
+        })
+        .catch(function(err) { 
+          console.error('All files fetch error:', err);
+          return []; 
+        })
+    );
+  }
+  
+  Promise.all(apiCalls)
     .then(function(results) {
-      allFiles = [].concat(Array.isArray(results[0]) ? results[0] : [], Array.isArray(results[1]) ? results[1] : []);
+      allFiles = [].concat(Array.isArray(results[0]) ? results[0] : []);
+      console.log('Loaded', allFiles.length, 'files total');
       document.getElementById('fileStatus').textContent = 'Ready';
       renderFiles();
     })
     .catch(function(err) {
+      console.error('File loading error:', err);
       document.getElementById('fileStatus').textContent = 'Error';
-      document.getElementById('fileRows').innerHTML = '<tr><td colspan="4"><div class="empty-state">Unable to load files: ' + DashboardShell.escapeHtml(err.message) + '</div></td></tr>';
+      document.getElementById('fileRows').innerHTML = '<tr><td colspan="5"><div class="empty-state">Unable to load files: ' + DashboardShell.escapeHtml(err.message) + '</div></td></tr>';
     });
 }
+
+// Event listeners
 document.getElementById('searchInput').addEventListener('input', renderFiles);
+
+// Reload when device changes or shell refreshes
 window.addEventListener('shellrefresh', loadFiles);
+window.addEventListener('devicechange', loadFiles);
+
+// Initial load
 loadFiles();
 </script>
 </body>
