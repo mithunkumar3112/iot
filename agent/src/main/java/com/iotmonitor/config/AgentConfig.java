@@ -70,7 +70,7 @@ public class AgentConfig {
     // -----------------------------------------------------------------------
 
     /** Maximum individual file size (bytes) to sync; larger files are skipped */
-    @Value("${agent.max-file-size-bytes:52428800}") // 50 MB default
+    @Value("${agent.max-file-size-bytes:${MAX_SYNC_FILE_SIZE_BYTES:104857600}}") // 100 MB default
     private long maxFileSizeBytes;
 
     /**
@@ -79,6 +79,10 @@ public class AgentConfig {
      */
     @Value("${agent.watched-dirs:}")
     private String watchedDirsRaw;
+
+    /** Backward-compatible single-directory property used by the standalone agent. */
+    @Value("${file.sync.dir:}")
+    private String fileSyncDirRaw;
 
     // -----------------------------------------------------------------------
     // Getters
@@ -105,6 +109,9 @@ public class AgentConfig {
         }
         if (watchedPaths == null || watchedPaths.isBlank()) {
             watchedPaths = System.getenv("APP_FILE_PATHS");
+        }
+        if (watchedPaths == null || watchedPaths.isBlank()) {
+            watchedPaths = fileSyncDirRaw;
         }
         if (watchedPaths == null || watchedPaths.isBlank()) {
             watchedPaths = System.getenv("FILE_SYNC_DIR");

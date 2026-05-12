@@ -10,6 +10,7 @@ import org.springframework.web.client.RestTemplate;
 import java.io.File;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
 
@@ -26,18 +27,35 @@ public class ApiClient {
         this.deviceId = System.getenv().getOrDefault("AGENT_DEVICE_ID", "Nandy-pc-66d0");
     }
 
-    public void uploadFileToBackend(File file) {
+    public boolean uploadFileToBackend(File file) {
         int maxRetries = 3;
         int retryCount = 0;
         boolean success = false;
 
+        if (file == null || !file.isFile()) {
+            System.err.println("[ApiClient] Skipping upload because path is not a regular file: " + file);
+            return false;
+        }
+
         while (retryCount < maxRetries && !success) {
             try {
+                String mimeType = detectMimeType(file);
+                System.out.println("[ApiClient] Upload start: " + file.getAbsolutePath()
+                        + " bytes=" + file.length()
+                        + " mimeType=" + mimeType);
+
                 HttpHeaders headers = new HttpHeaders();
                 headers.setContentType(MediaType.MULTIPART_FORM_DATA);
 
+                HttpHeaders fileHeaders = new HttpHeaders();
+                fileHeaders.setContentDisposition(ContentDisposition.formData()
+                        .name("file")
+                        .filename(file.getName(), StandardCharsets.UTF_8)
+                        .build());
+                fileHeaders.setContentType(MediaType.parseMediaType(mimeType));
+
                 MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-                body.add("file", new FileSystemResource(file));
+                body.add("file", new HttpEntity<>(new FileSystemResource(file), fileHeaders));
                 body.add("deviceId", deviceId);
                 body.add("localPath", file.getAbsolutePath());
 
@@ -48,10 +66,10 @@ public class ApiClient {
                 if (response.getStatusCode().is2xxSuccessful()) {
                     System.out.println("✅ Sync success: " + file.getName());
                     System.out.println("Sync response: " + response.getBody());
-                    success = true;
+                    return true;
                 } else {
                     System.err.println("❌ Sync failed (HTTP " + response.getStatusCode().value() + "): " + file.getName());
-                    break;
+                    return false;
                 }
 
             } catch (Exception e) {
@@ -69,6 +87,29 @@ public class ApiClient {
                 }
             }
         }
+        return false;
+    }
+
+    private String detectMimeType(File file) {
+        try {
+            String probed = Files.probeContentType(file.toPath());
+            if (probed != null && !probed.isBlank()) {
+                return probed;
+            }
+        } catch (Exception e) {
+            System.err.println("[ApiClient] MIME probe failed for " + file.getAbsolutePath() + ": " + e.getMessage());
+        }
+
+        String name = file.getName().toLowerCase();
+        if (name.endsWith(".txt")) return MediaType.TEXT_PLAIN_VALUE;
+        if (name.endsWith(".pdf")) return "application/pdf";
+        if (name.endsWith(".ppt")) return "application/vnd.ms-powerpoint";
+        if (name.endsWith(".pptx")) return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+        if (name.endsWith(".doc")) return "application/msword";
+        if (name.endsWith(".docx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return MediaType.IMAGE_JPEG_VALUE;
+        if (name.endsWith(".png")) return MediaType.IMAGE_PNG_VALUE;
+        return MediaType.APPLICATION_OCTET_STREAM_VALUE;
     }
 
     public void sendMetrics(String jsonData) {

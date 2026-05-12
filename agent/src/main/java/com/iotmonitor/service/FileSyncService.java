@@ -194,24 +194,37 @@ public class FileSyncService {
         catch (IOException e) { return; }
 
         if (size > config.getMaxFileSizeBytes()) {
-            log.debug("Skipping large file ({} MB): {}", size / (1024 * 1024), file);
+            log.warn("SYNC FILE SKIPPED oversized: localPath={} bytes={} maxBytes={}",
+                    file.toAbsolutePath(), size, config.getMaxFileSizeBytes());
             return;
         }
 
         // Hash check – skip if we already uploaded this version
         String hash = quickHash(file, size);
-        if (uploadedHashes.contains(hash)) return;
+        if (uploadedHashes.contains(hash)) {
+            log.debug("SYNC FILE SKIPPED already uploaded: localPath={} bytes={}", file.toAbsolutePath(), size);
+            return;
+        }
 
         String storagePath = deriveStoragePath(file);
         String filename = file.getFileName().toString();
-        log.info("SYNC FILE DETECTED: file={} filename={} storagePath={}", file.toAbsolutePath(), filename, storagePath);
+        MediaType mimeType = detectMimeType(file);
+        log.info("SYNC FILE DETECTED: file={} filename={} storagePath={} bytes={} mimeType={}",
+                file.toAbsolutePath(), filename, storagePath, size, mimeType);
 
         try {
             byte[] bytes = Files.readAllBytes(file);
 
             // Build multipart body
+            HttpHeaders fileHeaders = new HttpHeaders();
+            fileHeaders.setContentDisposition(ContentDisposition.formData()
+                    .name("file")
+                    .filename(filename)
+                    .build());
+            fileHeaders.setContentType(mimeType);
+
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-            body.add("file", new NamedByteArrayResource(bytes, filename));
+            body.add("file", new HttpEntity<>(new NamedByteArrayResource(bytes, filename), fileHeaders));
             body.add("storagePath", storagePath);
             body.add("deviceId", config.getDeviceId());
             body.add("localPath", file.toAbsolutePath().toString());
@@ -220,6 +233,8 @@ public class FileSyncService {
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
 
             HttpEntity<MultiValueMap<String, Object>> request = new HttpEntity<>(body, headers);
+            log.info("SYNC UPLOAD START: localPath={} storagePath={} bytes={} mimeType={}",
+                    file.toAbsolutePath(), storagePath, size, mimeType);
             ResponseEntity<String> response = rest.postForEntity(
                 config.getBackendUrl() + "/upload",
                 request,
@@ -238,9 +253,9 @@ public class FileSyncService {
             authService.invalidateToken();
             log.warn("Token expired – will re-authenticate on next attempt");
         } catch (IOException ex) {
-            log.warn("Could not read file {}: {}", file, ex.getMessage());
+            log.error("SYNC UPLOAD FAILURE read error: localPath={}", file.toAbsolutePath(), ex);
         } catch (Exception ex) {
-            log.warn("Upload error for {}: {}", filename, ex.getMessage());
+            log.error("SYNC UPLOAD FAILURE: localPath={} storagePath={}", file.toAbsolutePath(), storagePath, ex);
         }
     }
 
@@ -279,6 +294,28 @@ public class FileSyncService {
             return "unknown-device";
         }
         return value.trim().replaceAll("[^a-zA-Z0-9._/-]", "_");
+    }
+
+    private MediaType detectMimeType(Path file) {
+        try {
+            String probed = Files.probeContentType(file);
+            if (probed != null && !probed.isBlank()) {
+                return MediaType.parseMediaType(probed);
+            }
+        } catch (Exception ex) {
+            log.warn("MIME probe failed for {}: {}", file.toAbsolutePath(), ex.getMessage());
+        }
+
+        String name = file.getFileName().toString().toLowerCase(Locale.ROOT);
+        if (name.endsWith(".txt")) return MediaType.TEXT_PLAIN;
+        if (name.endsWith(".pdf")) return MediaType.APPLICATION_PDF;
+        if (name.endsWith(".ppt")) return MediaType.parseMediaType("application/vnd.ms-powerpoint");
+        if (name.endsWith(".pptx")) return MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.presentationml.presentation");
+        if (name.endsWith(".doc")) return MediaType.parseMediaType("application/msword");
+        if (name.endsWith(".docx")) return MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+        if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return MediaType.IMAGE_JPEG;
+        if (name.endsWith(".png")) return MediaType.IMAGE_PNG;
+        return MediaType.APPLICATION_OCTET_STREAM;
     }
 
     /**

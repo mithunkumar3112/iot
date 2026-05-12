@@ -1,6 +1,7 @@
 com\iotmonitor\monitor\ScreenshotActivityMonitor.class
 com\iotmonitor\monitor\UsbMonitor.class
 com\iotmonitor\service\ScreenshotService.class
+com\iotmonitor\agent\FileSyncService$1.class
 com\iotmonitor\monitor\UsbMonitor$UsbSnapshot.class
 com\iotmonitor\monitor\BatteryMonitor.class
 com\iotmonitor\monitor\SystemMonitor.class
@@ -11,6 +12,7 @@ com\iotmonitor\network\ApiClient.class
 com\iotmonitor\monitor\AppMonitor.class
 com\iotmonitor\service\ScreenshotService$1.class
 com\iotmonitor\agent\App.class
+com\iotmonitor\agent\FileSyncService$2.class
 com\iotmonitor\monitor\ClipboardMonitor$ClipboardData.class
 com\iotmonitor\monitor\ScreenshotService.class
 com\iotmonitor\service\FileSyncService.class
