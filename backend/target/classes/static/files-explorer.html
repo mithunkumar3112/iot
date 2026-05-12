@@ -29,7 +29,7 @@
 <script src="dashboard-shell.js"></script>
 <script>
 var content = document.getElementById('pageTemplate').content.cloneNode(true);
-DashboardShell.init({ active: 'files', title: 'File Explorer', subtitle: 'Browse, preview, and download synced laptop files.', content: content });
+var shell = DashboardShell.init({ active: 'files', title: 'File Explorer', subtitle: 'Browse, preview, and download synced laptop files.', content: content });
 var allFiles = [];
 
 function formatBytes(bytes) {

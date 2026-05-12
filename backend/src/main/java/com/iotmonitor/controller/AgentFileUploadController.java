@@ -55,8 +55,9 @@ public class AgentFileUploadController {
             String effectiveDeviceId = (deviceId != null && !deviceId.isBlank()) ? deviceId : "unknown-device";
             String originalFilename = file.getOriginalFilename();
             
-            logger.info("FILE UPLOAD START: deviceId={}, storagePath={}, originalFilename={}, localPath={}, size={} bytes",
-                effectiveDeviceId, storagePath, originalFilename, localPath, file.getSize());
+            String contentType = detectContentType(file);
+            logger.info("FILE UPLOAD START: deviceId={}, storagePath={}, originalFilename={}, localPath={}, size={} bytes, contentType={}",
+                effectiveDeviceId, storagePath, originalFilename, localPath, file.getSize(), contentType);
 
             if (originalFilename == null || originalFilename.isBlank()) {
                 logger.warn("FILE UPLOAD REJECTED: Invalid file name");
@@ -106,7 +107,7 @@ public class AgentFileUploadController {
 
             if (supabaseStorageService != null && supabaseStorageService.isSupabaseEnabled()) {
                 try {
-                    fileUrl = supabaseStorageService.uploadObjectByPath(effectiveStoragePath, bytes);
+                    fileUrl = supabaseStorageService.uploadObjectByPath(effectiveStoragePath, bytes, contentType);
                     supabaseUploadSuccess = true;
                     logger.info("SUPABASE FILE UPLOAD SUCCESS: bucket=files storagePath={} publicUrl={}", effectiveStoragePath, fileUrl);
                 } catch (Exception supabaseErr) {
@@ -218,5 +219,23 @@ public class AgentFileUploadController {
         int slash = normalized.lastIndexOf('/');
         String filename = slash >= 0 ? normalized.substring(slash + 1) : normalized;
         return filename.replaceAll("[\\r\\n\\t]", "_");
+    }
+
+    private String detectContentType(MultipartFile file) {
+        String contentType = file.getContentType();
+        if (contentType != null && !contentType.isBlank() && !"application/octet-stream".equals(contentType)) {
+            return contentType;
+        }
+
+        String name = file.getOriginalFilename() == null ? "" : file.getOriginalFilename().toLowerCase();
+        if (name.endsWith(".txt")) return "text/plain";
+        if (name.endsWith(".pdf")) return "application/pdf";
+        if (name.endsWith(".ppt")) return "application/vnd.ms-powerpoint";
+        if (name.endsWith(".pptx")) return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+        if (name.endsWith(".doc")) return "application/msword";
+        if (name.endsWith(".docx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "image/jpeg";
+        if (name.endsWith(".png")) return "image/png";
+        return "application/octet-stream";
     }
 }

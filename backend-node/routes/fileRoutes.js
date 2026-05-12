@@ -23,6 +23,9 @@ router.post('/upload', (req, res, next) => {
   });
 }, fileController.uploadFile);
 
+router.get('/files/all', fileController.getAllFiles);
+router.get('/files/device/:deviceId', fileController.getFilesByDevice);
+router.get('/files/recent', fileController.getRecentFiles);
 router.get('/files/:deviceId', fileController.getFilesByDevice);
 
 module.exports = router;

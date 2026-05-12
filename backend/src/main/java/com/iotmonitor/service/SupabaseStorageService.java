@@ -227,6 +227,15 @@ public class SupabaseStorageService {
         backoff = @Backoff(delay = 1000, multiplier = 2)
     )
     public String uploadObjectByPath(String objectPath, byte[] bytes) {
+        return uploadObjectByPath(objectPath, bytes, MediaType.APPLICATION_OCTET_STREAM_VALUE);
+    }
+
+    @Retryable(
+        value = {Exception.class},
+        maxAttempts = 3,
+        backoff = @Backoff(delay = 1000, multiplier = 2)
+    )
+    public String uploadObjectByPath(String objectPath, byte[] bytes, String contentType) {
         if (!supabaseEnabled) {
             throw new IllegalStateException("Supabase storage is disabled or misconfigured. Check SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY/SUPABASE_KEY, and SUPABASE_BUCKET_NAME on Render.");
         }
@@ -240,7 +249,7 @@ public class SupabaseStorageService {
         String url = buildStorageUrl(effectiveBucket, safeObjectPath) + "?upsert=true";
 
         HttpHeaders headers = storageAuthHeaders();
-        headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+        headers.setContentType(parseMediaType(contentType));
         headers.set("x-upsert", "true");
 
         HttpEntity<byte[]> request = new HttpEntity<>(bytes, headers);
@@ -273,6 +282,17 @@ public class SupabaseStorageService {
         }
 
         return buildPublicUrl(effectiveBucket, safeObjectPath);
+    }
+
+    private MediaType parseMediaType(String contentType) {
+        try {
+            if (contentType != null && !contentType.isBlank()) {
+                return MediaType.parseMediaType(contentType);
+            }
+        } catch (Exception e) {
+            logger.warn("Invalid upload content type '{}', using application/octet-stream", contentType);
+        }
+        return MediaType.APPLICATION_OCTET_STREAM;
     }
 
     private String safeObjectPath(String objectPath) {

@@ -101,6 +101,39 @@ exports.getFilesByDevice = async (req, res) => {
   }
 };
 
+exports.getAllFiles = async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('files_metadata')
+      .select('*')
+      .order('uploaded_at', { ascending: false });
+
+    if (error) throw error;
+    res.status(200).json(data || []);
+  } catch (err) {
+    console.error('[files] Get all files exception:', err);
+    res.status(500).json({ error: 'Error fetching files from cloud', detail: err.message });
+  }
+};
+
+exports.getRecentFiles = async (req, res) => {
+  const limit = Math.max(1, Math.min(Number(req.query.limit || 10), 100));
+
+  try {
+    const { data, error } = await supabase
+      .from('files_metadata')
+      .select('*')
+      .order('uploaded_at', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+    res.status(200).json(data || []);
+  } catch (err) {
+    console.error('[files] Get recent files exception:', err);
+    res.status(500).json({ error: 'Error fetching recent files from cloud', detail: err.message });
+  }
+};
+
 function sanitizeStoragePath(value) {
   if (!value || typeof value !== 'string') return '';
   return value
