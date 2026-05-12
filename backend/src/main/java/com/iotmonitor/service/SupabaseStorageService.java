@@ -182,20 +182,6 @@ public class SupabaseStorageService {
             if (ex.getStatusCode().value() == 409) {
                 logger.warn("Supabase file already exists (409 Conflict), treating as success: {}", objectPath);
                 if (publicUrlBase != null && !publicUrlBase.isBlank()) {
-                    return publicUrlBase.replaceAll("/+$", "") + "/" + objectPath;
-                }
-                return String.format("%s/storage/v1/object/public/%s/%s", supabaseUrl, effectiveBucket, objectPath);
-            }
-            throw new IllegalStateException("Supabase upload failed: " + ex.getStatusCode() + " - " + body, ex);
-        }
-
-        if (!response.getStatusCode().is2xxSuccessful()) {
-            logger.error("Supabase upload returned non-2xx status: {} body={}", response.getStatusCode(), response.getBody());
-            throw new IllegalStateException("Supabase upload failed with status " + response.getStatusCode() + " body=" + response.getBody());
-        }
-
-        if (publicUrlBase != null && !publicUrlBase.isBlank()) {
-            return publicUrlBase.replaceAll("/+$", "") + "/" + objectPath;
             
             // Treat 409 Conflict (duplicate file) as success - file already exists in cloud storage
             if (ex.getStatusCode().value() == 409) {
@@ -216,7 +202,6 @@ public class SupabaseStorageService {
         if (publicUrlBase != null && !publicUrlBase.isBlank()) {
             return publicUrlBase.replaceAll("/+$", "") + "/" + objectPath;
         }
-
         return String.format("%s/storage/v1/object/public/%s/files/%s", supabaseUrl, effectiveBucket, objectPath);
     }
 
