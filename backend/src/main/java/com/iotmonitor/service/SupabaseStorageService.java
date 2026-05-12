@@ -125,8 +125,30 @@ public class SupabaseStorageService {
 
     private String buildStorageUrl(String bucketName, String objectPath) {
         String base = getStorageBaseUrl();
-        // Supabase Storage API: /storage/v1/object/{bucketName}/{objectPath}
-        return String.format("%s/object/%s/%s", base, bucketName, objectPath);
+        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(base)
+                .pathSegment("object")
+                .pathSegment(bucketName);
+        for (String segment : objectPath.split("/")) {
+            builder.pathSegment(segment);
+        }
+        return builder.toUriString();
+    }
+
+    private String buildPublicUrl(String bucketName, String objectPath) {
+        if (publicUrlBase != null && !publicUrlBase.isBlank()) {
+            UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(publicUrlBase.replaceAll("/+$", ""));
+            for (String segment : objectPath.split("/")) {
+                builder.pathSegment(segment);
+            }
+            return builder.toUriString();
+        }
+
+        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(supabaseUrl.replaceAll("/+$", ""))
+                .pathSegment("storage", "v1", "object", "public", bucketName);
+        for (String segment : objectPath.split("/")) {
+            builder.pathSegment(segment);
+        }
+        return builder.toUriString();
     }
 
     private void verifyBucket(String bucketName) {
@@ -173,7 +195,8 @@ public class SupabaseStorageService {
         ResponseEntity<String> response;
         try {
             response = restTemplate.exchange(url, HttpMethod.POST, request, String.class);
-            logger.info("Supabase upload successful: status={} path={}", response.getStatusCode(), objectPath);
+            logger.info("Supabase upload successful: status={} path={} response={}",
+                    response.getStatusCode(), objectPath, response.getBody());
         } catch (HttpStatusCodeException ex) {
             String body = ex.getResponseBodyAsString();
             logger.error("Supabase upload failed: url={} method=POST status={} statusText={} body={} headers={}",
@@ -195,10 +218,69 @@ public class SupabaseStorageService {
             throw new IllegalStateException("Supabase upload failed with status " + response.getStatusCode() + " body=" + response.getBody());
         }
 
-        if (publicUrlBase != null && !publicUrlBase.isBlank()) {
-            return publicUrlBase.replaceAll("/+$", "") + "/" + objectPath;
+        return buildPublicUrl(effectiveBucket, objectPath);
+    }
+
+    @Retryable(
+        value = {Exception.class},
+        maxAttempts = 3,
+        backoff = @Backoff(delay = 1000, multiplier = 2)
+    )
+    public String uploadObjectByPath(String objectPath, byte[] bytes) {
+        if (!supabaseEnabled) {
+            throw new IllegalStateException("Supabase storage is disabled or misconfigured. Check SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY/SUPABASE_KEY, and SUPABASE_BUCKET_NAME on Render.");
         }
-        return String.format("%s/storage/v1/object/public/%s/%s", supabaseUrl, effectiveBucket, objectPath);
+
+        String effectiveBucket = getEffectiveBucket();
+        if (effectiveBucket == null || effectiveBucket.isBlank()) {
+            throw new IllegalStateException("Supabase bucket is not configured");
+        }
+
+        String safeObjectPath = safeObjectPath(objectPath);
+        String url = buildStorageUrl(effectiveBucket, safeObjectPath) + "?upsert=true";
+
+        HttpHeaders headers = storageAuthHeaders();
+        headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+        headers.set("x-upsert", "true");
+
+        HttpEntity<byte[]> request = new HttpEntity<>(bytes, headers);
+
+        logger.info("Supabase upload request: method=POST bucket={} path={} bytes={} authHeader={}",
+                effectiveBucket, safeObjectPath, bytes == null ? 0 : bytes.length, headers.getFirst("Authorization") != null ? "present" : "missing");
+
+        ResponseEntity<String> response;
+        try {
+            response = restTemplate.exchange(url, HttpMethod.POST, request, String.class);
+            logger.info("Supabase upload successful: status={} path={} response={}",
+                    response.getStatusCode(), safeObjectPath, response.getBody());
+        } catch (HttpStatusCodeException ex) {
+            String body = ex.getResponseBodyAsString();
+            logger.error("Supabase upload failed: url={} method=POST status={} statusText={} body={} headers={}",
+                url, ex.getStatusCode(), ex.getStatusText(), body, ex.getResponseHeaders());
+            if (ex.getStatusCode().value() == 409) {
+                logger.warn("Supabase file already exists (409 Conflict), treating as success: {}", safeObjectPath);
+                if (publicUrlBase != null && !publicUrlBase.isBlank()) {
+                    return publicUrlBase.replaceAll("/+$", "") + "/" + safeObjectPath;
+                }
+                return String.format("%s/storage/v1/object/public/%s/%s", supabaseUrl, effectiveBucket, safeObjectPath);
+            }
+            throw new IllegalStateException("Supabase upload failed: " + ex.getStatusCode() + " - " + body, ex);
+        }
+
+        if (!response.getStatusCode().is2xxSuccessful()) {
+            logger.error("Supabase upload returned non-2xx status: {} body={}", response.getStatusCode(), response.getBody());
+            throw new IllegalStateException("Supabase upload failed with status " + response.getStatusCode() + " body=" + response.getBody());
+        }
+
+        return buildPublicUrl(effectiveBucket, safeObjectPath);
+    }
+
+    private String safeObjectPath(String objectPath) {
+        String normalized = objectPath == null ? "" : objectPath.trim().replace("\\", "/").replaceAll("^/+", "");
+        while (normalized.contains("..")) {
+            normalized = normalized.replace("..", "_");
+        }
+        return normalized.isBlank() ? "unknown-device/upload.bin" : normalized;
     }
 
     private String safeObjectPath(String deviceId, String fileName) {
@@ -211,6 +293,10 @@ public class SupabaseStorageService {
             normalizedFileName = normalizedFileName.replace("..", "_");
         }
         return safeDeviceId + "/" + normalizedFileName;
+    }
+
+    public String storagePathFor(String deviceId, String fileName) {
+        return safeObjectPath(deviceId, fileName);
     }
 
     public String createSignedUrl(String deviceId, String safeFilename, int expiresInSeconds) {
@@ -334,7 +420,7 @@ public class SupabaseStorageService {
         throw new IllegalStateException("Supabase recent files fetch failed from all known file metadata tables", lastError);
     }
 
-    public Map<String, Object> persistFileMetadata(String fileName, String fileUrl, String deviceId, long fileSize, String sha256, String hashWithSize) {
+    public Map<String, Object> persistFileMetadata(String fileName, String fileUrl, String deviceId, String storagePath, long fileSize, String sha256, String hashWithSize) {
         if (!supabaseEnabled) {
             logger.debug("Supabase disabled, skipping metadata persistence for local file: {}", fileName);
             return null; // Return null to indicate metadata not persisted to cloud
@@ -354,7 +440,8 @@ public class SupabaseStorageService {
             payload.put("device_id", deviceId);
             payload.put("file_size", fileSize);
             if ("files_metadata".equals(tableName)) {
-                payload.put("storage_path", safeObjectPath(deviceId, fileName));
+                payload.put("storage_path", safeObjectPath(storagePath));
+                payload.put("file_type", fileType(fileName));
                 payload.put("uploaded_at", Instant.now().toString());
             } else {
                 payload.put("upload_time", Instant.now().toString());
@@ -362,11 +449,28 @@ public class SupabaseStorageService {
                 payload.put("hash_size", hashWithSize);
             }
 
-            HttpEntity<List<Map<String, Object>>> request = new HttpEntity<>(List.of(payload), headers);
             try {
-                ResponseEntity<List> response = restTemplate.exchange(url, HttpMethod.POST, request, List.class);
-                if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null || response.getBody().isEmpty()) {
+                Map<String, Object> existing = findExistingFileMetadata(tableName, deviceId, fileName, storagePath);
+                ResponseEntity<List> response;
+                if (existing != null && existing.get("id") != null) {
+                    String updateUrl = UriComponentsBuilder.fromHttpUrl(url)
+                            .queryParam("id", "eq." + existing.get("id"))
+                            .toUriString();
+                    response = restTemplate.exchange(updateUrl, HttpMethod.PATCH,
+                            new HttpEntity<>(payload, headers), List.class);
+                    logger.info("Supabase metadata update response: table={} id={} status={} body={}",
+                            tableName, existing.get("id"), response.getStatusCode(), response.getBody());
+                } else {
+                    response = restTemplate.exchange(url, HttpMethod.POST,
+                            new HttpEntity<>(List.of(payload), headers), List.class);
+                    logger.info("Supabase metadata insert response: table={} status={} body={}",
+                            tableName, response.getStatusCode(), response.getBody());
+                }
+                if (!response.getStatusCode().is2xxSuccessful()) {
                     throw new IllegalStateException("Supabase metadata write failed: " + response.getStatusCode());
+                }
+                if (response.getBody() == null || response.getBody().isEmpty()) {
+                    return payload;
                 }
                 return (Map<String, Object>) response.getBody().get(0);
             } catch (HttpStatusCodeException ex) {
@@ -386,6 +490,46 @@ public class SupabaseStorageService {
         logger.warn("Supabase metadata write failed for all known file metadata tables: {}",
                 lastError == null ? "unknown error" : lastError.getMessage());
         return null;
+    }
+
+    private Map<String, Object> findExistingFileMetadata(String tableName, String deviceId, String fileName, String storagePath) {
+        try {
+            UriComponentsBuilder uri = UriComponentsBuilder.fromHttpUrl(supabaseUrl + "/rest/v1/" + tableName)
+                    .queryParam("select", "*")
+                    .queryParam("device_id", "eq." + deviceId)
+                    .queryParam("limit", 1);
+
+            if ("files_metadata".equals(tableName)) {
+                uri.queryParam("storage_path", "eq." + safeObjectPath(storagePath));
+            } else {
+                uri.queryParam("file_name", "eq." + fileName);
+            }
+
+            HttpHeaders headers = authHeaders();
+            headers.set("Accept", "application/json");
+            ResponseEntity<List> response = restTemplate.exchange(
+                    uri.toUriString(), HttpMethod.GET, new HttpEntity<>(headers), List.class);
+
+            if (response.getStatusCode().is2xxSuccessful()
+                    && response.getBody() != null
+                    && !response.getBody().isEmpty()) {
+                return (Map<String, Object>) response.getBody().get(0);
+            }
+        } catch (Exception e) {
+            logger.debug("Supabase metadata lookup failed table={} file={} storagePath={} error={}", tableName, fileName, storagePath, e.getMessage());
+        }
+        return null;
+    }
+
+    private String fileType(String fileName) {
+        if (fileName == null) {
+            return "bin";
+        }
+        int dot = fileName.lastIndexOf('.');
+        if (dot < 0 || dot == fileName.length() - 1) {
+            return "bin";
+        }
+        return fileName.substring(dot + 1).toLowerCase();
     }
 
     public List<Map<String, Object>> fetchProcessLogs(String deviceId, int limit) {

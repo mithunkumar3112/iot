@@ -39,6 +39,7 @@ public class ApiClient {
                 MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
                 body.add("file", new FileSystemResource(file));
                 body.add("deviceId", deviceId);
+                body.add("localPath", file.getAbsolutePath());
 
                 HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
 
@@ -46,6 +47,7 @@ public class ApiClient {
 
                 if (response.getStatusCode().is2xxSuccessful()) {
                     System.out.println("✅ Sync success: " + file.getName());
+                    System.out.println("Sync response: " + response.getBody());
                     success = true;
                 } else {
                     System.err.println("❌ Sync failed (HTTP " + response.getStatusCode().value() + "): " + file.getName());

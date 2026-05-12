@@ -55,7 +55,7 @@ function dedupe(files) {
 function normalizeFile(file) {
   var name = file.name || file.fileName || file.file_name || 'file';
   var url = file.url || file.fileUrl || file.file_url || '';
-  var path = file.path || file.fullPath || url || name;
+  var path = file.path || file.fullPath || file.storage_path || url || name;
   var size = file.size || file.fileSize || file.file_size || 0;
   var modified = file.lastModified || file.uploadTime || file.upload_time || file.uploaded_at || 0;
   var deviceId = file.deviceId || file.device_id || file.device || 'unknown';

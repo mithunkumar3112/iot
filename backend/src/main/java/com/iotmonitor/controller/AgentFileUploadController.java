@@ -48,21 +48,23 @@ public class AgentFileUploadController {
 
     @PostMapping("/upload")
     public ResponseEntity<?> uploadFile(@RequestParam("file") MultipartFile file,
-                                        @RequestParam(value = "deviceId", required = false) String deviceId) {
+                                        @RequestParam(value = "deviceId", required = false) String deviceId,
+                                        @RequestParam(value = "storagePath", required = false) String storagePath,
+                                        @RequestParam(value = "localPath", required = false) String localPath) {
         try {
             String effectiveDeviceId = (deviceId != null && !deviceId.isBlank()) ? deviceId : "unknown-device";
             String originalFilename = file.getOriginalFilename();
             
-            logger.info("FILE UPLOAD START: deviceId={}, filename={}, size={} bytes", 
-                effectiveDeviceId, originalFilename, file.getSize());
+            logger.info("FILE UPLOAD START: deviceId={}, storagePath={}, originalFilename={}, localPath={}, size={} bytes",
+                effectiveDeviceId, storagePath, originalFilename, localPath, file.getSize());
 
             if (originalFilename == null || originalFilename.isBlank()) {
                 logger.warn("FILE UPLOAD REJECTED: Invalid file name");
                 return ResponseEntity.badRequest().body(Map.of("error", "Invalid file name"));
             }
 
-            String safeFilename = Paths.get(originalFilename).getFileName().toString();
-            if (safeFilename.contains("..")) {
+            String safeFilename = extractSafeFilename(originalFilename);
+            if (safeFilename.isBlank() || safeFilename.contains("..")) {
                 logger.warn("FILE UPLOAD REJECTED: Path traversal attempt in filename: {}", safeFilename);
                 return ResponseEntity.badRequest().body(Map.of("error", "Invalid file name"));
             }
@@ -86,42 +88,51 @@ public class AgentFileUploadController {
             Files.deleteIfExists(localFilePath);
             Files.write(localFilePath, bytes);
             
-            // Build a cloud‑style path (deviceId/fileName) for metadata and UI consistency
-            String fileUrl = "files/" + effectiveDeviceId + "/" + safeFilename;
-            logger.debug("Generated cloud path for metadata: {}", fileUrl);
+            // Build a cloud-style path for metadata and UI consistency, allowing the agent
+            // to supply an explicit storage path when available.
+            String effectiveStoragePath = storagePath != null && !storagePath.isBlank()
+                    ? storagePath.trim().replaceAll("^/+", "")
+                    : (supabaseStorageService != null
+                        ? supabaseStorageService.storagePathFor(effectiveDeviceId, safeFilename)
+                        : sanitizePathSegment(effectiveDeviceId) + "/" + safeFilename);
+            String fileUrl = "files/" + effectiveStoragePath;
+            logger.info("FILE PATH NORMALIZED: localPath={}, safeFilename={}, storagePath={}",
+                    localPath != null ? localPath : originalFilename, safeFilename, effectiveStoragePath);
             logger.info("FILE SAVED LOCALLY (overwritten if existed): path={}", localFilePath);
 
             Map<String, Object> supabaseRow = null;
+            boolean supabaseUploadSuccess = false;
+            String supabaseUploadError = null;
 
             if (supabaseStorageService != null && supabaseStorageService.isSupabaseEnabled()) {
                 try {
-                try {
-                    // Supabase upload returns the public URL; we already have the correct cloud path in fileUrl
-                    fileUrl = supabaseStorageService.uploadObject(effectiveDeviceId, safeFilename, bytes);
-                    logger.info("Supabase upload succeeded: {}", fileUrl);
+                    fileUrl = supabaseStorageService.uploadObjectByPath(effectiveStoragePath, bytes);
+                    supabaseUploadSuccess = true;
+                    logger.info("SUPABASE FILE UPLOAD SUCCESS: bucket=files storagePath={} publicUrl={}", effectiveStoragePath, fileUrl);
                 } catch (Exception supabaseErr) {
-                    logger.warn("SUPABASE UPLOAD FAILED: Falling back to local storage only: {}", supabaseErr.getMessage(), supabaseErr);
+                    supabaseUploadError = supabaseErr.getMessage();
+                    logger.warn("SUPABASE FILE UPLOAD FAILED: localPath={} storagePath={} error={}",
+                            localPath != null ? localPath : originalFilename, effectiveStoragePath, supabaseErr.getMessage(), supabaseErr);
                 }
-                    
+
+                if (supabaseUploadSuccess) {
                     try {
-                        logger.debug("SUPABASE METADATA PERSIST STARTING: saving metadata to database");
+                        logger.info("SUPABASE METADATA PERSIST STARTING: deviceId={} storagePath={}", effectiveDeviceId, effectiveStoragePath);
                         supabaseRow = supabaseStorageService.persistFileMetadata(
                                 safeFilename,
                                 fileUrl,
                                 effectiveDeviceId,
+                                effectiveStoragePath,
                                 bytes.length,
                                 sha256,
                                 hashWithSize
                         );
-                        logger.info("SUPABASE METADATA SUCCESS: metadataId={}", 
-                            supabaseRow != null ? supabaseRow.get("id") : "null");
+                        logger.info("SUPABASE METADATA SUCCESS: metadataId={} storagePath={}",
+                            supabaseRow != null ? supabaseRow.get("id") : "null", effectiveStoragePath);
                     } catch (Exception metadataErr) {
-                        logger.warn("SUPABASE METADATA FAILED: File in storage but metadata not saved: {}", 
-                            metadataErr.getMessage());
+                        logger.warn("SUPABASE METADATA FAILED: storagePath={} error={}",
+                            effectiveStoragePath, metadataErr.getMessage(), metadataErr);
                     }
-                } catch (Exception supabaseErr) {
-                    logger.warn("SUPABASE UPLOAD FAILED: Falling back to local storage only: {}", 
-                        supabaseErr.getMessage(), supabaseErr);
                 }
             } else {
                 logger.info("SUPABASE DISABLED: Using local storage only");
@@ -150,13 +161,26 @@ public class AgentFileUploadController {
 
             Map<String, Object> response = new HashMap<>();
             if (supabaseRow == null) {
-                response.put("message", "File uploaded locally (Supabase unavailable)");
+                if (supabaseStorageService != null && supabaseStorageService.isSupabaseEnabled() && supabaseUploadError != null) {
+                    response.put("message", "File uploaded locally; Supabase upload failed");
+                    response.put("supabaseUploadError", supabaseUploadError);
+                } else {
+                    response.put("message", "File uploaded locally (Supabase unavailable)");
+                }
             } else {
-                response.put("message", "File uploaded to Supabase successfully");
+                if (supabaseUploadSuccess) {
+                    response.put("message", "File uploaded to Supabase successfully");
+                } else {
+                    response.put("message", "File uploaded to Supabase, but metadata persistence failed");
+                    if (supabaseUploadError != null) {
+                        response.put("supabaseUploadError", supabaseUploadError);
+                    }
+                }
                 response.put("supabaseRow", supabaseRow);
             }
             response.put("fileUrl", fileUrl);
             response.put("localPath", localFilePath.toString());
+            response.put("storagePath", effectiveStoragePath);
             response.put("deviceId", effectiveDeviceId);
             response.put("metadataId", metadata.getId());
             response.put("hash", sha256);
@@ -187,5 +211,12 @@ public class AgentFileUploadController {
             return "unknown-device";
         }
         return value.trim().replaceAll("[^a-zA-Z0-9._-]", "_");
+    }
+
+    private String extractSafeFilename(String originalFilename) {
+        String normalized = originalFilename == null ? "" : originalFilename.trim().replace("\\", "/");
+        int slash = normalized.lastIndexOf('/');
+        String filename = slash >= 0 ? normalized.substring(slash + 1) : normalized;
+        return filename.replaceAll("[\\r\\n\\t]", "_");
     }
 }

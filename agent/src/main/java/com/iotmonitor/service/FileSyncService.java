@@ -30,7 +30,7 @@ import java.util.concurrent.*;
  * 1. On startup, registers a {@link WatchService} on each configured watched
  *    directory and begins emitting CREATE / MODIFY / MOVE events in a
  *    background thread.
- * 2. Uploads new or changed files to {@code /server-files/upload} using
+ * 2. Uploads new or changed files to {@code /upload} using
  *    multipart/form-data.
  * 3. Skips files that have already been uploaded (tracked by SHA-256 hash of
  *    the first 64 KB + file size).
@@ -202,8 +202,9 @@ public class FileSyncService {
         String hash = quickHash(file, size);
         if (uploadedHashes.contains(hash)) return;
 
-        String folder   = deriveFolderName(file);
+        String storagePath = deriveStoragePath(file);
         String filename = file.getFileName().toString();
+        log.info("SYNC FILE DETECTED: file={} filename={} storagePath={}", file.toAbsolutePath(), filename, storagePath);
 
         try {
             byte[] bytes = Files.readAllBytes(file);
@@ -211,23 +212,26 @@ public class FileSyncService {
             // Build multipart body
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
             body.add("file", new NamedByteArrayResource(bytes, filename));
-            body.add("folder", folder);
+            body.add("storagePath", storagePath);
+            body.add("deviceId", config.getDeviceId());
+            body.add("localPath", file.toAbsolutePath().toString());
 
             HttpHeaders headers = authService.authHeaders();
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
 
             HttpEntity<MultiValueMap<String, Object>> request = new HttpEntity<>(body, headers);
             ResponseEntity<String> response = rest.postForEntity(
-                config.getBackendUrl() + "/api/android/files/upload",
+                config.getBackendUrl() + "/upload",
                 request,
                 String.class
             );
 
             if (response.getStatusCode().is2xxSuccessful()) {
                 uploadedHashes.add(hash);
-                log.info("Uploaded: {}/{} ({} bytes)", folder, filename, size);
+                log.info("Detected file for sync: localPath={} storagePath={} deviceId={} bytes={} response={}",
+                        file.toAbsolutePath(), storagePath, config.getDeviceId(), size, response.getBody());
             } else {
-                log.warn("Upload rejected ({}): {}", response.getStatusCode(), filename);
+                log.warn("Sync upload rejected ({}): localPath={} storagePath={}", response.getStatusCode(), file.toAbsolutePath(), storagePath);
             }
 
         } catch (HttpClientErrorException.Unauthorized e) {
@@ -245,19 +249,36 @@ public class FileSyncService {
     // -----------------------------------------------------------------------
 
     /**
-     * Derives a folder tag from the file's parent directory name, mapping
-     * Desktop/Documents/Downloads to lowercase equivalents.
+     * Derives the storage path for an uploaded file relative to the watched
+     * directory root. Files directly inside a watched directory are uploaded
+     * into files/{deviceId}/{filename}.
      */
-    private String deriveFolderName(Path file) {
-        String parent = file.getParent() != null
-            ? file.getParent().getFileName().toString().toLowerCase()
-            : "misc";
-        return switch (parent) {
-            case "desktop"   -> "desktop";
-            case "documents" -> "documents";
-            case "downloads" -> "downloads";
-            default          -> parent;
-        };
+    private String deriveStoragePath(Path file) {
+        Path absoluteFile = file.toAbsolutePath().normalize();
+        for (String dir : config.getWatchedDirs()) {
+            try {
+                Path root = Paths.get(dir).toAbsolutePath().normalize();
+                if (absoluteFile.startsWith(root)) {
+                    Path relative = root.relativize(absoluteFile);
+                    String normalized = relative.toString().replace("\\", "/");
+                    normalized = normalized.replaceAll("^/+", "");
+                    normalized = normalized.replaceAll("\.\.", "_");
+
+                    return normalizePathSegment(config.getDeviceId()) + "/" + normalized;
+                }
+            } catch (Exception ignored) {
+                // ignore invalid watched directory entries
+            }
+        }
+        // Fallback to device root if no watched directory matches
+        return normalizePathSegment(config.getDeviceId()) + "/" + normalizePathSegment(file.getFileName().toString());
+    }
+
+    private String normalizePathSegment(String value) {
+        if (value == null || value.isBlank()) {
+            return "unknown-device";
+        }
+        return value.trim().replaceAll("[^a-zA-Z0-9._/-]", "_");
     }
 
     /**

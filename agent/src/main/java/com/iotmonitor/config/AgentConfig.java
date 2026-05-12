@@ -99,13 +99,25 @@ public class AgentConfig {
      * standard user folders when the property is empty.
      */
     public List<String> getWatchedDirs() {
-        if (watchedDirsRaw != null && !watchedDirsRaw.isBlank()) {
-            return List.of(watchedDirsRaw.split(","))
+        String watchedPaths = watchedDirsRaw;
+        if (watchedPaths == null || watchedPaths.isBlank()) {
+            watchedPaths = System.getenv("AGENT_WATCHED_DIRS");
+        }
+        if (watchedPaths == null || watchedPaths.isBlank()) {
+            watchedPaths = System.getenv("APP_FILE_PATHS");
+        }
+        if (watchedPaths == null || watchedPaths.isBlank()) {
+            watchedPaths = System.getenv("FILE_SYNC_DIR");
+        }
+
+        if (watchedPaths != null && !watchedPaths.isBlank()) {
+            return List.of(watchedPaths.split(","))
                        .stream()
                        .map(String::trim)
                        .filter(s -> !s.isEmpty())
                        .toList();
         }
+
         String home = System.getProperty("user.home");
         return List.of(
             home + "/Desktop",
