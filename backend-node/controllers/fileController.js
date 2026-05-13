@@ -180,6 +180,8 @@ function isSharedFolderFile(row) {
     'login_screen',
     'login-screen',
     'login screenshot',
+    'failed_login',
+    'failed-login',
     'user_detection',
     'user-detection',
     'detection_screen',

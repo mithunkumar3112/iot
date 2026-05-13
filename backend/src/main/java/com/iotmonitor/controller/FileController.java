@@ -37,10 +37,18 @@ public class FileController {
     private String filePaths;
 
     private List<Path> getRootPaths() {
-        return Arrays.stream(filePaths.split(","))
+        List<Path> roots = new ArrayList<>(Arrays.stream(filePaths.split(","))
                 .map(String::trim)
+                .filter(p -> !p.isBlank())
                 .map(p -> Paths.get(p).toAbsolutePath().normalize())
-                .collect(Collectors.toList());
+                .collect(Collectors.toList()));
+        Path agentUploadRoot = Paths.get(System.getProperty("java.io.tmpdir"), "iot-monitor-uploads")
+                .toAbsolutePath()
+                .normalize();
+        if (!roots.contains(agentUploadRoot)) {
+            roots.add(agentUploadRoot);
+        }
+        return roots;
     }
 
     private Path resolveSafe(String filePath) throws IOException {
@@ -49,7 +57,10 @@ public class FileController {
         }
 
         filePath = java.net.URLDecoder.decode(filePath, "UTF-8");
-        filePath = filePath.replace("\\", "/");
+        filePath = filePath.replace("\\", "/").replaceAll("^/+", "");
+        if (filePath.startsWith("files/")) {
+            filePath = filePath.substring("files/".length());
+        }
 
         for (Path root : getRootPaths()) {
             try {
