@@ -326,7 +326,7 @@ async function loadFiles(){
         download.innerText="Download";
         download.onclick=()=>{
             if (fileUrl) window.location = fileUrl;
-            else if(file.path) window.location="/files/download/" + encodeURIComponent(file.path);
+            else if(file.path) window.location="/files/download?path=" + encodeURIComponent(file.path);
         };
 
         row.appendChild(name);

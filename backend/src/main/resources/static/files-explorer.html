@@ -117,14 +117,14 @@ function fileActions(file) {
   // Handle relative paths through backend
   if (url.charAt(0) === '/' || (url && !url.includes('http'))) {
     var encoded = encodeURIComponent(url);
-    return '<a class="btn secondary" target="_blank" href="/files/read/' + encoded +
-      '" title="Preview file">Preview</a><a class="btn success" href="/files/download/' + encoded + '" title="Download file">Download</a>';
+    return '<a class="btn secondary" target="_blank" href="/files/read?path=' + encoded +
+      '" title="Preview file">Preview</a><a class="btn success" href="/files/download?path=' + encoded + '" title="Download file">Download</a>';
   }
   
   // Handle file path from API response
   var encoded = encodeURIComponent(file.path || url);
-  return '<a class="btn secondary" target="_blank" href="/files/read/' + encoded +
-    '" title="Preview file">Preview</a><a class="btn success" href="/files/download/' + encoded + '" title="Download file">Download</a>';
+  return '<a class="btn secondary" target="_blank" href="/files/read?path=' + encoded +
+    '" title="Preview file">Preview</a><a class="btn success" href="/files/download?path=' + encoded + '" title="Download file">Download</a>';
 }
 
 function renderFiles() {

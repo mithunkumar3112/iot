@@ -136,9 +136,19 @@ public class FileController {
     }
 
     // Download file
+    @GetMapping("/download")
+    public ResponseEntity<?> downloadFileByQuery(@RequestParam("path") String filePath,
+                                                 @RequestParam(required = false) String token) {
+        return downloadResolvedFile(filePath);
+    }
+
     @GetMapping("/download/{filePath:.+}")
     public ResponseEntity<?> downloadFile(@PathVariable String filePath,
                                          @RequestParam(required = false) String token) {
+        return downloadResolvedFile(filePath);
+    }
+
+    private ResponseEntity<?> downloadResolvedFile(String filePath) {
         try {
             Path file = resolveSafe(java.net.URLDecoder.decode(filePath, "UTF-8"));
             
@@ -165,8 +175,17 @@ public class FileController {
     }
     
     // View file inline (images, PDFs, etc.)
+    @GetMapping("/view")
+    public ResponseEntity<?> viewFileByQuery(@RequestParam("path") String filePath) {
+        return viewResolvedFile(filePath);
+    }
+
     @GetMapping("/view/{filePath:.+}")
     public ResponseEntity<?> viewFile(@PathVariable String filePath) {
+        return viewResolvedFile(filePath);
+    }
+
+    private ResponseEntity<?> viewResolvedFile(String filePath) {
         try {
             Path file = resolveSafe(java.net.URLDecoder.decode(filePath, "UTF-8"));
             Resource resource = new UrlResource(file.toUri());
@@ -189,8 +208,17 @@ public class FileController {
 
     
     // Read file as HTML table (for text files)
+    @GetMapping("/read")
+    public ResponseEntity<?> readFileByQuery(@RequestParam("path") String filePath) {
+        return readResolvedFile(filePath);
+    }
+
     @GetMapping("/read/{filePath:.+}")
     public ResponseEntity<?> readFile(@PathVariable String filePath) {
+        return readResolvedFile(filePath);
+    }
+
+    private ResponseEntity<?> readResolvedFile(String filePath) {
         try {
             Path file = resolveSafe(java.net.URLDecoder.decode(filePath, "UTF-8"));
 
